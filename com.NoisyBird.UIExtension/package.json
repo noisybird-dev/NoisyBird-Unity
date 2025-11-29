@@ -1,7 +1,7 @@
 {
   "name": "com.noisybird.uiextension",
-  "version": "1.0.1",
-    "displayName": "[NoisyBird] UI Extension",
+  "version": "1.0.3",
+  "displayName": "[NoisyBird] UI Extension",
   "description": "This is a UGUI Extension.",
   "unity": "6000.0",
   "keywords": [
@@ -11,9 +11,8 @@
     "Extension"
   ],
   "author": {
-    "name" : "NoisyBird",
-    "email" : "noisybird.dev@gmail.com"
+    "name": "NoisyBird",
+    "email": "noisybird.dev@gmail.com"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }

@@ -5,6 +5,15 @@
 
 ## Version
 
+### 1.0.3
+[SafeArea] SafeArea 기능 추가
+- SafeAreaManager 싱글톤 클래스 추가 (순수 C# 클래스)
+- SafeArea 컴포넌트 추가 (UIBehaviour 상속)
+- 에디터 모드 및 플레이 모드 지원 ([ExecuteAlways])
+- CanvasScaler와 호환되는 자동 크기 조정
+- Device Simulator 및 일반 Game View 지원
+- 해상도 변경 및 회전 시 자동 업데이트
+
 ### 1.0.2
 [ButtonEx] Scale Punch Transition 추가
 - Click Transition 옵션 추가 (Scale Punch)
