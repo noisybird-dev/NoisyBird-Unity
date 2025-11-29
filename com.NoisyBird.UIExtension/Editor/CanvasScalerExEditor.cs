@@ -1,8 +1,9 @@
 using System;
+using NoisyBird.UIExtension.Canvas;
 using UnityEditor;
 using UnityEditor.UI;
 
-namespace NoisyBird.UIExtension.Canvas
+namespace NoisyBird.UIExtension.Editor.Canvas
 {
     [CustomEditor(typeof(CanvasScalerEx), true)]
     [CanEditMultipleObjects]

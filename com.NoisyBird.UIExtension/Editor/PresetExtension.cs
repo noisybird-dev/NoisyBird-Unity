@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
-namespace NoisyBird.UIExtension.PresetExtension
+namespace NoisyBird.UIExtension.Editor.PresetExtension
 {
     [InitializeOnLoad]
     public static class PresetExtension
@@ -139,7 +139,7 @@ namespace NoisyBird.UIExtension.PresetExtension
             }
         }
 
-        private static VisualElement BuildToolbarFor(Editor editor)
+        private static VisualElement BuildToolbarFor(UnityEditor.Editor editor)
         {
             var bar = new VisualElement
             {
