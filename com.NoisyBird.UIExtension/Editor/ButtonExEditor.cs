@@ -29,7 +29,7 @@ namespace NoisyBird.UIExtension.Editor.UI
         public override void OnInspectorGUI()
         {
             base.OnInspectorGUI();
-            EditorGUILayout.Space();
+            EditorGUILayout.Space(20f);
 
             serializedObject.Update();
             
