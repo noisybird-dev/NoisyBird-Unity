@@ -31,6 +31,7 @@ namespace NoisyBird.UIExtension.UI
         {
             base.OnEnable();
             UnityEngine.Canvas.willRenderCanvases += OnWillRenderCanvases;
+            
             Init();
             UpdateRect();
         }
@@ -39,6 +40,7 @@ namespace NoisyBird.UIExtension.UI
         {
             base.OnDisable();
             UnityEngine.Canvas.willRenderCanvases -= OnWillRenderCanvases;
+            
             StopUpdateCoroutine();
         }
 
@@ -131,7 +133,6 @@ namespace NoisyBird.UIExtension.UI
 
         private IEnumerator DelayedUpdate()
         {
-            yield return new WaitForEndOfFrame();
             yield return new WaitForEndOfFrame();
             
             // Re-check Canvas size after frame end (similar to SafeArea's Refresh)

@@ -5,6 +5,11 @@
 
 ## Version
 
+### 1.0.5
+[SafeArea] Edit Mode 해상도 이슈 수정
+- Game View와 Device Simulator 간의 해상도 불일치 문제 해결
+- Screen.currentResolution과 Screen.width/height를 상황에 맞게 사용하도록 개선
+
 ### 1.0.4
 [SafeArea] SafeArea 회전 이슈 수정
 - 회전 시 Screen.safeArea가 업데이트되지 않는 문제 수정
