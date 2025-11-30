@@ -1,10 +1,9 @@
-using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 #if UNITY_EDITOR
-using UnityEditor;
+using Unity.EditorCoroutines.Editor;
 #endif
 
 namespace NoisyBird.UIExtension.SafeArea
@@ -15,8 +14,10 @@ namespace NoisyBird.UIExtension.SafeArea
     {
         private RectTransform _rectTransform;
         private bool _needsApply = false;
-        private int _lastUpdateFrame = 0;
         private Coroutine _delayedApplyCoroutine;
+#if UNITY_EDITOR
+        private EditorCoroutine _delayedApplyEditorCoroutine;
+#endif
         private Vector2 _lastCanvasSize;
 
         protected override void Awake()
@@ -31,7 +32,6 @@ namespace NoisyBird.UIExtension.SafeArea
             SafeAreaManager.Instance.OnSafeAreaChanged += OnSafeAreaChanged;
             UnityEngine.Canvas.willRenderCanvases += OnWillRenderCanvases;
             
-            // Initial check and apply
             SafeAreaManager.Instance.Refresh();
             ApplySafeArea(SafeAreaManager.Instance.SafeArea);
         }
@@ -42,12 +42,7 @@ namespace NoisyBird.UIExtension.SafeArea
             
             UnityEngine.Canvas.willRenderCanvases -= OnWillRenderCanvases;
             
-            // Stop any pending coroutine
-            if (_delayedApplyCoroutine != null)
-            {
-                StopCoroutine(_delayedApplyCoroutine);
-                _delayedApplyCoroutine = null;
-            }
+            StopCoroutine();
             
             if (SafeAreaManager.Instance != null)
             {
@@ -55,17 +50,55 @@ namespace NoisyBird.UIExtension.SafeArea
             }
         }
 
+        private void StartCoroutine()
+        {
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                _delayedApplyEditorCoroutine = EditorCoroutineUtility.StartCoroutine(DelayedApplySafeArea(), gameObject);
+            }
+            else
+            {
+                _delayedApplyCoroutine = StartCoroutine(DelayedApplySafeArea());
+            }
+#else
+            _delayedApplyCoroutine = StartCoroutine(DelayedApplySafeArea());
+#endif
+        }
+
+        private void StopCoroutine()
+        {
+#if UNITY_EDITOR
+            if (Application.isPlaying == false)
+            {
+                if (_delayedApplyEditorCoroutine != null)
+                {
+                    EditorCoroutineUtility.StopCoroutine(_delayedApplyEditorCoroutine);
+                    _delayedApplyEditorCoroutine = null;
+                }
+            }
+            else
+            {
+                if (_delayedApplyCoroutine != null)
+                {
+                    StopCoroutine(_delayedApplyCoroutine);
+                    _delayedApplyCoroutine = null;
+                }
+            }
+#else
+            if (_delayedApplyCoroutine != null)
+            {
+                StopCoroutine(_delayedApplyCoroutine);
+                _delayedApplyCoroutine = null;
+            }
+#endif
+        }
+
         protected override void OnRectTransformDimensionsChange()
         {
             base.OnRectTransformDimensionsChange();
-            
-            // When screen rotates or resolution changes, the Canvas size changes, 
-            // triggering this on all children.
-            SafeAreaManager.Instance.CheckUpdate();
-            
-            // Mark that we need to apply on next canvas render
-            // This ensures CanvasScaler has finished updating
-            _needsApply = true;
+
+            OnWillRenderCanvases();
         }
 
         private void OnWillRenderCanvases()
@@ -80,6 +113,7 @@ namespace NoisyBird.UIExtension.SafeArea
                     Vector2 currentCanvasSize = canvasRect.rect.size;
                     if (_lastCanvasSize != currentCanvasSize)
                     {
+                        //Debug.Log($"[SafeArea] Canvas size changed: {_lastCanvasSize} -> {currentCanvasSize}");
                         _lastCanvasSize = currentCanvasSize;
                         SafeAreaManager.Instance.CheckUpdate();
                         _needsApply = true;
@@ -87,48 +121,22 @@ namespace NoisyBird.UIExtension.SafeArea
                 }
             }
             
-            if (_needsApply && _lastUpdateFrame != Time.frameCount)
+            if (_needsApply)
             {
+                //Debug.Log($"[SafeArea] Triggering delayed apply, Canvas size: {_lastCanvasSize}");
                 _needsApply = false;
-                _lastUpdateFrame = Time.frameCount;
-                Debug.Log(_lastUpdateFrame);
-#if UNITY_EDITOR
-                if (!Application.isPlaying)
-                {
-                    // In edit mode, use EditorApplication.delayCall
-                    EditorApplication.delayCall += () => 
-                    {
-                        if (this != null && enabled)
-                        {
-                            ApplySafeArea(SafeAreaManager.Instance.SafeArea);
-                        }
-                    };
-                }
-                else
-                {
-                    // In play mode, use coroutine
-                    if (_delayedApplyCoroutine != null)
-                    {
-                        StopCoroutine(_delayedApplyCoroutine);
-                    }
-                    _delayedApplyCoroutine = StartCoroutine(DelayedApplySafeArea());
-                }
-#else
-                // In build, always use coroutine
-                if (_delayedApplyCoroutine != null)
-                {
-                    StopCoroutine(_delayedApplyCoroutine);
-                }
-                _delayedApplyCoroutine = StartCoroutine(DelayedApplySafeArea());
-#endif
+                StopCoroutine();
+                StartCoroutine();
             }
         }
 
         private IEnumerator DelayedApplySafeArea()
         {
-            yield return null;
+            yield return new WaitForEndOfFrame();
+            SafeAreaManager.Instance.Refresh();
             ApplySafeArea(SafeAreaManager.Instance.SafeArea);
             _delayedApplyCoroutine = null;
+            _delayedApplyEditorCoroutine = null;
         }
 
         private void OnSafeAreaChanged(Rect safeArea)
@@ -171,6 +179,8 @@ namespace NoisyBird.UIExtension.SafeArea
             float centerX = safeAreaX + safeAreaWidth * 0.5f - canvasWidth * 0.5f;
             float centerY = safeAreaY + safeAreaHeight * 0.5f - canvasHeight * 0.5f;
             _rectTransform.anchoredPosition = new Vector2(centerX, centerY);
+            
+            //Debug.Log($"[SafeArea] Applied - Canvas: {canvasWidth}x{canvasHeight}, Screen: {Screen.width}x{Screen.height}, SafeArea: {safeArea}, Calculated Size: {safeAreaWidth}x{safeAreaHeight}");
         }
     }
 }

@@ -5,6 +5,18 @@
 
 ## Version
 
+### 1.0.4
+[SafeArea] SafeArea 회전 이슈 수정
+- 회전 시 Screen.safeArea가 업데이트되지 않는 문제 수정
+- WaitForEndOfFrame 후 SafeAreaManager.Refresh() 호출 추가
+
+[AlwaysMaxScreen] AlwaysMaxScreen 회전 이슈 수정
+- Canvas World Corners 대신 Canvas Rect 크기 직접 사용
+- 회전 시 크기 및 위치 계산 오류 수정
+- EditorCoroutine 지원 추가
+
+[Package] com.unity.editorcoroutines 의존성 추가
+
 ### 1.0.3
 [SafeArea] SafeArea 기능 추가
 - SafeAreaManager 싱글톤 클래스 추가 (순수 C# 클래스)
