@@ -69,7 +69,7 @@ namespace NoisyBird.UIExtension.SafeArea
         private void StartCoroutine()
         {
 #if UNITY_EDITOR
-            if (!Application.isPlaying)
+            if (!Application.isPlaying && gameObject)
             {
                 _delayedApplyEditorCoroutine = EditorCoroutineUtility.StartCoroutine(DelayedApplySafeArea(), gameObject);
             }
@@ -161,8 +161,19 @@ namespace NoisyBird.UIExtension.SafeArea
 
         private IEnumerator DelayedApplySafeArea()
         {
+#if UNITY_EDITOR
+            if (Application.isPlaying)
+            {
+                yield return new WaitForEndOfFrame();
+            }
+            else
+            {
+                yield return new EditorWaitForSeconds(0.001f);
+            }
+#else
             yield return new WaitForEndOfFrame();
-            SafeAreaManager.Instance.Refresh();
+#endif
+            SafeAreaManager.Instance.Refresh(false);
             ApplySafeArea(SafeAreaManager.Instance.SafeArea);
             _delayedApplyCoroutine = null;
             _delayedApplyEditorCoroutine = null;
@@ -171,6 +182,8 @@ namespace NoisyBird.UIExtension.SafeArea
         private void OnSafeAreaChanged(Rect safeArea)
         {
             _needsApply = true;
+            StopCoroutine();
+            StartCoroutine();
         }
 
         private void ApplySafeArea(Rect safeArea)

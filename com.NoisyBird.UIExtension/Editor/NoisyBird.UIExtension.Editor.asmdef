@@ -1,8 +1,8 @@
 {
     "name": "NoisyBird.UIExtension.Editor",
-    "rootNamespace": "",
+    "rootNamespace": "NoisyBird.UIExtension.Editor",
     "references": [
-        "GUID:eb15d700a504be64a8b70261ff2fce10"
+        "NoisyBird.UIExtension.Runtime"
     ],
     "includePlatforms": [
         "Editor"

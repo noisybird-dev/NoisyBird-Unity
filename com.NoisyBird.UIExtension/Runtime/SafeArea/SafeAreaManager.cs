@@ -76,10 +76,13 @@ namespace NoisyBird.UIExtension.SafeArea
 #endif
         }
 
-        public void Refresh()
+        public void Refresh(bool isNotify = true)
         {
             _safeArea = GetCurrentSafeArea();
-            OnSafeAreaChanged?.Invoke(_safeArea);
+            if (isNotify)
+            {
+                OnSafeAreaChanged?.Invoke(_safeArea);
+            }
         }
     }
 }

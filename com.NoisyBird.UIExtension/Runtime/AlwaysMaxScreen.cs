@@ -133,7 +133,18 @@ namespace NoisyBird.UIExtension.UI
 
         private IEnumerator DelayedUpdate()
         {
+#if UNITY_EDITOR
+            if (Application.isPlaying)
+            {
+                yield return new WaitForEndOfFrame();
+            }
+            else
+            {
+                yield return new EditorWaitForSeconds(0.001f);
+            }
+#else
             yield return new WaitForEndOfFrame();
+#endif
             
             // Re-check Canvas size after frame end (similar to SafeArea's Refresh)
             if (rootCanvasRect != null)
