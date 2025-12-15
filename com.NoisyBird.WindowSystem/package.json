@@ -1,0 +1,19 @@
+{
+    "name": "com.noisybird.windowsystem",
+    "version": "1.0.2",
+    "displayName": "[NoisyBird] Window System",
+    "description": "Unity Window System with state management and scene transition support.",
+    "unity": "6000.0",
+    "keywords": [
+        "NoisyBird",
+        "Window",
+        "UI",
+        "State Management",
+        "Scene Transition"
+    ],
+    "author": {
+        "name": "NoisyBird",
+        "email": "noisybird.dev@gmail.com"
+    },
+    "dependencies": {}
+}
