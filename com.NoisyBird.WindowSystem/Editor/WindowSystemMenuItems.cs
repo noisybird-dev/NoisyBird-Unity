@@ -73,7 +73,7 @@ namespace NoisyBird.WindowSystem.Editor
             Debug.Log("[WindowSystem] Canvas with Window Root created.");
         }
 
-        [MenuItem("NoisyBird/Window System/Documentation", false, 100)]
+        [MenuItem("Noisy Bird/Window System/Documentation", false, 100)]
         private static void OpenDocumentation()
         {
             string readmePath = "Assets/NoisyBird-Unity/com.NoisyBird.WindowSystem/README.md";
@@ -91,7 +91,7 @@ namespace NoisyBird.WindowSystem.Editor
             }
         }
 
-        [MenuItem("NoisyBird/Window System/Open Window Manager", false, 101)]
+        [MenuItem("Noisy Bird/Window System/Open Window Manager", false, 101)]
         private static void OpenWindowManagerWindow()
         {
             WindowManagerEditorWindow.ShowWindow();

@@ -25,7 +25,7 @@ namespace NoisyBird.WindowSystem.Editor
         private GUIStyle _stateItemStyle;
         private bool _stylesInitialized;
 
-        [MenuItem("NoisyBird/Window System/Window Manager")]
+        [MenuItem("Noisy Bird/Window System/Window Manager")]
         public static void ShowWindow()
         {
             WindowManagerEditorWindow window = GetWindow<WindowManagerEditorWindow>("Window Manager");

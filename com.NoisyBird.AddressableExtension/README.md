@@ -62,9 +62,13 @@ AddressableManager.Instance.LoadGameObject("MyCharacterPrefab", parentTransform,
 2. `AutoAddressableConfig` 에셋이 `Assets/Resources/NoisyBird/AddressableExtension/` 경로에 생성되거나 선택됩니다.
 3. `Rules` 리스트에 원하는 규칙을 추가합니다.
    - **FolderPath**: 모니터링할 폴더 경로 (예: `Assets/GameData/Items`)
-   - **GroupName**: 할당할 Addressable 그룹 이름 (없는 경우 자동 생성)
-   - **Labels**: 추가할 라벨 목록
+   - **GroupName**: 할당할 Addressable 그룹 이름 (없는 경우 자동 생성, 드롭다운 선택 가능)
+   - **Labels**: 추가할 라벨 목록 (드롭다운 선택 및 추가 가능)
    - **SimplifyAddress**: 체크 시 파일 확장자를 제외한 이름을 주소로 사용
+
+#### 편의 기능
+- **Context Menu**: Project 뷰에서 폴더 우클릭 > `Add Folder to Addressable Config`를 선택하면 자동으로 해당 폴더가 Config에 추가됩니다.
+- **Singleton**: `AutoAddressableConfig.Instance`를 통해 코드에서 설정에 접근할 수 있습니다.
 
 설정 후 해당 폴더에 에셋이 추가되거나 변경되면, 자동으로 그룹과 라벨이 설정됩니다.
 
@@ -99,3 +103,9 @@ AddressableDownloader.DownloadDependenciesAsync("RemoteLabel",
 - **GameObject Lifecycle**: `AddressableLifecycleLinker`를 통한 자동 해제.
 - **Editor Automation**: `AutoAddressableConfig` 및 `AddressableConfigMenu`를 통한 그룹/라벨 자동 설정.
 - **Remote Download**: `AddressableDownloader` 유틸리티 추가.
+
+### 1.0.1
+- **Editor Enhancements**:
+  - `AutoAddressableConfig` 싱글톤 접근 지원.
+  - 인스펙터 개선: GroupName, Labels 드롭다운 UI 적용.
+  - Project 창 폴더 우클릭 컨텍스트 메뉴(`Add Folder to Addressable Config`) 추가.
