@@ -8,7 +8,7 @@ namespace NoisyBird.WindowSystem.Editor
     /// </summary>
     public static class WindowSystemMenuItems
     {
-        private const string MENU_ROOT = "GameObject/NoisyBird/Window System/";
+        private const string MENU_ROOT = "GameObject/Noisy Bird/Window System/";
 
         [MenuItem(MENU_ROOT + "Create Window Manager", false, 0)]
         private static void CreateWindowManager()
