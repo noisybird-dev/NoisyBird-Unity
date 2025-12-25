@@ -42,6 +42,20 @@ MonoBehaviour 확장 유틸리티
 https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.MonoExtension
 ```
 
+### 4. [Addressable Extension](./com.NoisyBird.AddressableExtension/README.md) ⭐ NEW
+**Version**: `1.0.1`
+
+Addressable 리소스 관리 및 자동화 시스템
+- 레퍼런스 카운팅 및 태그 기반 리소스 관리
+- 에디터 자동화 (Config, Group/Label 자동 설정)
+- GameObject 생명주기 자동화
+- 리모트 다운로드 유틸리티
+
+#### Install via UPM (Git URL)
+```text
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension#v1.0.1
+```
+
 ---
 
 ## 🚀 빠른 설치
@@ -60,7 +74,8 @@ https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.MonoExt
   "dependencies": {
     "com.noisybird.windowsystem": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem#v1.0.2",
     "com.noisybird.uiextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.UIExtension",
-    "com.noisybird.monoextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.MonoExtension"
+    "com.noisybird.monoextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.MonoExtension",
+    "com.noisybird.addressableextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension#v1.0.1"
   }
 }
 ```
