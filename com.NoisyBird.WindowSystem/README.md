@@ -183,7 +183,10 @@ public class MyWindow : WindowBase
 
 ## 버전 히스토리
 
-### 1.0.2 (현재)
+### 1.0.3 (현재)
+- **버그 수정**
+
+### 1.0.2
 - **Window 타입 확장**
   - Underlay 타입 추가
   - 5단계 렌더링 순서 (Underlay < Screen/Popup < Overlay < Toast)
