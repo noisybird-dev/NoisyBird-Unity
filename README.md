@@ -5,7 +5,7 @@ Unity 게임 개발을 위한 NoisyBird 패키지 모음입니다.
 ## 📦 패키지 목록
 
 ### 1. [Window System](./com.NoisyBird.WindowSystem/README.md) ⭐ NEW
-**Version**: `1.0.2`
+**Version**: `1.0.3`
 
 강력한 UI Window 관리 시스템
 - 5단계 Window 타입 (Underlay, Screen, Popup, Overlay, Toast)
@@ -15,7 +15,7 @@ Unity 게임 개발을 위한 NoisyBird 패키지 모음입니다.
 
 #### Install via UPM (Git URL)
 ```text
-https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem#v1.0.2
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem#v1.0.3
 ```
 
 ---
