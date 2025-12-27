@@ -58,6 +58,21 @@ https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Address
 
 ---
 
+### 5. [Debug](./com.NoisyBird.Debug/README.md) ⭐ NEW
+**Version**: `1.0.0`
+
+조건부 디버깅 및 강력한 치트 시스템
+- `USE_DEBUG` 조건부 컴파일 지원
+- Attribute 기반 치트 시스템 (`[NBCheat]`)
+- Editor 및 Runtime 치트 UI 지원 (Safe Area, Touch 대응)
+
+#### Install via UPM (Git URL)
+```text
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Debug#v1.0.0
+```
+
+---
+
 ## 🚀 빠른 설치
 
 ### Unity Package Manager 사용
@@ -75,7 +90,8 @@ https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Address
     "com.noisybird.windowsystem": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem#v1.0.2",
     "com.noisybird.uiextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.UIExtension",
     "com.noisybird.monoextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.MonoExtension",
-    "com.noisybird.addressableextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension#v1.0.1"
+    "com.noisybird.addressableextension": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension#v1.0.1",
+    "com.noisybird.debug": "https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Debug#v1.0.0"
   }
 }
 ```
