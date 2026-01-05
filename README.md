@@ -15,7 +15,7 @@ Unity 게임 개발을 위한 NoisyBird 패키지 모음입니다.
 
 #### Install via UPM (Git URL)
 ```text
-https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem#v1.0.3
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.WindowSystem
 ```
 
 ---
@@ -53,7 +53,7 @@ Addressable 리소스 관리 및 자동화 시스템
 
 #### Install via UPM (Git URL)
 ```text
-https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension#v1.0.1
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.AddressableExtension
 ```
 
 ---
@@ -68,7 +68,7 @@ https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Address
 
 #### Install via UPM (Git URL)
 ```text
-https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Debug#v1.0.0
+https://github.com/noisybird-dev/NoisyBird-Unity.git?path=/com.NoisyBird.Debug
 ```
 
 ---
