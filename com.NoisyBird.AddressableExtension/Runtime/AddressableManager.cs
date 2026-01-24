@@ -171,6 +171,18 @@ namespace NoisyBird.AddressableExtension
                 onComplete?.Invoke(instance);
             }, onError, tag);
         }
+        
+        public T LoadGameObjectAsync<T>(string key, Transform parent = null, string tag = null) where T : Component
+        {
+            var prefab = LoadAssetSync<GameObject>(key, tag);
+            if (prefab == null) return null;
+
+            var instance = Instantiate(prefab, parent);
+            var linker = instance.AddComponent<AddressableLifecycleLinker>();
+            linker.Init(this, key);
+            
+            return instance.GetComponent<T>();
+        }
 
         private void RegisterTag(string tag, string key)
         {
