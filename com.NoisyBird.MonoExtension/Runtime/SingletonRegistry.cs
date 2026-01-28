@@ -16,7 +16,7 @@ namespace NoisyBird.MonoExtension
             public GameObject prefab;
         }
 
-        private List<Entry> _entries = new();
+        [SerializeField] private List<Entry> _entries = new();
         private Dictionary<string, Entry> _map;
 
         public static SingletonRegistry Instance
