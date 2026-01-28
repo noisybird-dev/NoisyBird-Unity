@@ -58,7 +58,11 @@ namespace NoisyBird.MonoExtension.Editor
                         });
                     }
 
-                    if (DrawEntryField(entry, () => { Undo.RecordObject(registry, "Modify SingletonRegistry"); }))
+                    if (DrawEntryField(entry, () => 
+                    { 
+                        Undo.RecordObject(registry, "Modify SingletonRegistry");
+                        EditorUtility.SetDirty(registry);
+                    }))
                     {
                         isChanged = true;
                     }
