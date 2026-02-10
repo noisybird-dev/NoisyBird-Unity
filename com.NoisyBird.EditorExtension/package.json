@@ -1,0 +1,17 @@
+{
+    "name": "com.noisybird.editorextension",
+    "displayName": "[NoisyBird] Editor Extension",
+    "version": "0.0.1",
+    "unity": "2021.3",
+    "description": "Editor extension utilities for NoisyBird packages",
+    "keywords": [
+        "editor",
+        "extension",
+        "noisybird"
+    ],
+    "author": {
+        "name": "NoisyBird",
+        "email": "noisybird.dev@gmail.com"
+    },
+    "dependencies": {}
+}

@@ -1,0 +1,18 @@
+{
+    "name": "NoisyBird.EditorExtension.Editor",
+    "rootNamespace": "NoisyBird.EditorExtension.Editor",
+    "references": [
+        "NoisyBird.EditorExtension.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
