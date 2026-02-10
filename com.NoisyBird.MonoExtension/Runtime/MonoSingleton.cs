@@ -34,7 +34,7 @@ namespace NoisyBird.MonoExtension
         {
             if (dontDestroyOnLoad)
             {
-                DontDestroyOnLoad(_instance.gameObject);
+                DontDestroyOnLoad(gameObject);
             }
             base.Awake();
         }
