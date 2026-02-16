@@ -10,14 +10,38 @@ namespace NoisyBird.WindowSystem.Editor
     {
         private const string MENU_ROOT = "GameObject/Noisy Bird/Window System/";
 
-        [MenuItem(MENU_ROOT + "Create Window Manager", false, 0)]
+        [MenuItem(MENU_ROOT + "Create Window Manager with Containers", false, 0)]
+        private static void CreateWindowManagerWithContainers()
+        {
+            // 이미 존재하는지 확인
+            WindowManager existing = Object.FindObjectOfType<WindowManager>();
+            if (existing != null)
+            {
+                EditorUtility.DisplayDialog("Window Manager Exists",
+                    "WindowManager already exists in the scene.", "OK");
+                Selection.activeGameObject = existing.gameObject;
+                EditorGUIUtility.PingObject(existing.gameObject);
+                return;
+            }
+
+            // WindowManager GameObject 생성 (Awake에서 자동으로 Canvas와 Container 생성)
+            GameObject go = new GameObject("WindowManager");
+            WindowManager windowManager = go.AddComponent<WindowManager>();
+
+            Undo.RegisterCreatedObjectUndo(go, "Create Window Manager with Containers");
+            Selection.activeGameObject = go;
+
+            Debug.Log("[WindowSystem] WindowManager with Containers created.");
+        }
+
+        [MenuItem(MENU_ROOT + "Create Window Manager (Legacy)", false, 1)]
         private static void CreateWindowManager()
         {
             // 이미 존재하는지 확인
             WindowManager existing = Object.FindObjectOfType<WindowManager>();
             if (existing != null)
             {
-                EditorUtility.DisplayDialog("Window Manager Exists", 
+                EditorUtility.DisplayDialog("Window Manager Exists",
                     "WindowManager already exists in the scene.", "OK");
                 Selection.activeGameObject = existing.gameObject;
                 EditorGUIUtility.PingObject(existing.gameObject);
@@ -27,10 +51,10 @@ namespace NoisyBird.WindowSystem.Editor
             // 새로 생성
             GameObject go = new GameObject("WindowManager");
             go.AddComponent<WindowManager>();
-            
+
             Undo.RegisterCreatedObjectUndo(go, "Create Window Manager");
             Selection.activeGameObject = go;
-            
+
             Debug.Log("[WindowSystem] WindowManager created.");
         }
 

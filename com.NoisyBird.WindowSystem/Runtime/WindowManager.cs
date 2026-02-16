@@ -56,6 +56,19 @@ namespace NoisyBird.WindowSystem
         // Window 로더 델리게이트 (프로젝트별 커스터마이징 가능)
         private WindowLoaderDelegate _windowLoader = null;
 
+        // Container 참조 저장 (WindowType -> Transform)
+        private Dictionary<WindowType, Transform> _containersByType = new Dictionary<WindowType, Transform>();
+
+        // Container GameObject 이름 매핑
+        private static readonly Dictionary<WindowType, string> _containerNames = new Dictionary<WindowType, string>
+        {
+            { WindowType.Underlay, "UnderlayContainer" },
+            { WindowType.Screen, "ScreenContainer" },
+            { WindowType.Popup, "PopupContainer" },
+            { WindowType.Overlay, "OverlayContainer" },
+            { WindowType.Toast, "ToastContainer" }
+        };
+
         /// <summary>
         /// Window 로더 델리게이트를 설정합니다.
         /// 등록되지 않은 Window를 열 때 자동으로 로드하는 함수를 지정할 수 있습니다.
@@ -77,6 +90,9 @@ namespace NoisyBird.WindowSystem
             _instance = this;
             DontDestroyOnLoad(gameObject);
 
+            // Container 생성
+            CreateContainers();
+
             // 씬 전환 이벤트 등록
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
@@ -89,6 +105,86 @@ namespace NoisyBird.WindowSystem
                 SceneManager.sceneLoaded -= OnSceneLoaded;
                 SceneManager.sceneUnloaded -= OnSceneUnloaded;
             }
+        }
+
+        /// <summary>
+        /// WindowType별 Container GameObject를 생성합니다.
+        /// Underlay -> Screen -> Popup -> Overlay -> Toast 순서로 생성됩니다.
+        /// </summary>
+        private void CreateContainers()
+        {
+            // Canvas 컴포넌트 확인 및 자동 추가
+            Canvas canvas = GetComponent<Canvas>();
+            if (canvas == null)
+            {
+                canvas = gameObject.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                gameObject.AddComponent<UnityEngine.UI.CanvasScaler>();
+                gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                Debug.Log("[WindowManager] Canvas component added automatically.");
+            }
+
+            // WindowType 순서 정의 (렌더링 순서와 동일)
+            WindowType[] orderedTypes = new WindowType[]
+            {
+                WindowType.Underlay,
+                WindowType.Screen,
+                WindowType.Popup,
+                WindowType.Overlay,
+                WindowType.Toast
+            };
+
+            foreach (WindowType type in orderedTypes)
+            {
+                GameObject container = new GameObject(_containerNames[type]);
+                RectTransform rectTransform = container.AddComponent<RectTransform>();
+
+                // Container를 WindowManager의 자식으로 설정
+                container.transform.SetParent(transform, false);
+
+                // RectTransform 전체 화면으로 설정
+                rectTransform.anchorMin = Vector2.zero;
+                rectTransform.anchorMax = Vector2.one;
+                rectTransform.sizeDelta = Vector2.zero;
+                rectTransform.anchoredPosition = Vector2.zero;
+
+                // Container 참조 저장
+                _containersByType[type] = container.transform;
+            }
+        }
+
+        /// <summary>
+        /// WindowType에 해당하는 Container Transform을 반환합니다.
+        /// </summary>
+        /// <param name="windowType">Window 타입</param>
+        /// <returns>Container Transform, 없으면 null</returns>
+        private Transform GetContainerForType(WindowType windowType)
+        {
+            return _containersByType.TryGetValue(windowType, out Transform container) ? container : null;
+        }
+
+        /// <summary>
+        /// Window를 적절한 Container의 자식으로 설정합니다.
+        /// </summary>
+        /// <param name="window">부모를 설정할 Window</param>
+        private void SetWindowParent(WindowBase window)
+        {
+            Transform targetContainer = GetContainerForType(window.WindowType);
+
+            if (targetContainer == null)
+            {
+                Debug.LogError($"[WindowManager] Container not found for WindowType '{window.WindowType}'");
+                return;
+            }
+
+            // 이미 올바른 부모라면 변경하지 않음
+            if (window.transform.parent == targetContainer)
+            {
+                return;
+            }
+
+            // Container의 자식으로 설정 (worldPositionStays: false)
+            window.transform.SetParent(targetContainer, false);
         }
 
         /// <summary>
@@ -115,6 +211,9 @@ namespace NoisyBird.WindowSystem
             }
 
             _registeredWindows[window.WindowId] = window;
+
+            // Window를 해당 Container의 자식으로 설정
+            SetWindowParent(window);
         }
 
         /// <summary>
@@ -263,21 +362,26 @@ namespace NoisyBird.WindowSystem
         }
 
         /// <summary>
-        /// Window의 Hierarchy 순서를 WindowType에 따라 업데이트합니다.
-        /// 순서: Underlay < (Screen/Popup 스택) < Overlay < Toast
-        /// Screen/Popup은 구분 없이 나중에 열린 것이 위에 표시됩니다.
+        /// Window의 Hierarchy 순서를 업데이트합니다.
+        /// Container 구조에서는 Screen/Popup만 순서를 관리합니다 (나중에 열린 것이 위).
         /// </summary>
         /// <param name="window">순서를 업데이트할 Window</param>
         private void UpdateWindowHierarchyOrder(WindowBase window)
         {
-            if (window == null || window.transform.parent == null)
+            if (window == null)
                 return;
 
-            Transform parent = window.transform.parent;
-            int targetIndex = GetHierarchyIndexForWindow(window, parent);
-            window.transform.SetSiblingIndex(targetIndex);
+            // Screen/Popup만 순서 관리 (나중에 열린 것이 위로)
+            if (window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup)
+            {
+                // 스택의 최상위로 이동 (마지막 자식으로 설정)
+                window.transform.SetAsLastSibling();
+            }
+            // Overlay, Toast, Underlay는 순서 관리 안 함 (Container 내에서 생성 순서 유지)
         }
 
+        // 더 이상 사용하지 않음 (Container 구조에서는 불필요)
+        /*
         /// <summary>
         /// Window의 Hierarchy 인덱스를 계산합니다.
         /// </summary>
@@ -330,6 +434,7 @@ namespace NoisyBird.WindowSystem
                 default: return 0;
             }
         }
+        */
 
         /// <summary>
         /// 스택의 최상위 Window를 닫습니다. (Screen/Popup만 해당)

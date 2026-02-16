@@ -1,6 +1,6 @@
 {
     "name": "com.noisybird.windowsystem",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "displayName": "[NoisyBird] Window System",
     "description": "Unity Window System with state management and scene transition support.",
     "unity": "6000.0",

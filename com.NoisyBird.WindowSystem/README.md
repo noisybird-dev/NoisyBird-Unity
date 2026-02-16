@@ -42,6 +42,27 @@ Unity Package Manager를 통해 설치할 수 있습니다.
 
 ## 빠른 시작
 
+### 0. Window Manager 설정
+
+먼저 씬에 Window Manager를 생성합니다:
+
+```
+Unity 메뉴 > GameObject > Noisy Bird > Window System > Create Window Manager with Containers
+```
+
+이렇게 하면 다음과 같은 계층 구조가 생성됩니다:
+
+```
+WindowManager (Canvas 자동 부착)
+  ├─ UnderlayContainer
+  ├─ ScreenContainer
+  ├─ PopupContainer
+  ├─ OverlayContainer
+  └─ ToastContainer
+```
+
+각 Window는 자동으로 해당 WindowType의 Container 하위에 배치됩니다.
+
 ### 1. Window 생성
 
 ```csharp
@@ -131,8 +152,9 @@ WindowManager.Instance.OpenWindow("NewWindow");
 - 런타임 제어 버튼
 
 ### 메뉴 아이템
-**메뉴**: `GameObject > NoisyBird > Window System`
-- Create Window Manager
+**메뉴**: `GameObject > Noisy Bird > Window System`
+- **Create Window Manager with Containers** - Container 기반 계층 구조로 WindowManager 생성 (권장)
+- Create Window Manager (Legacy) - 기존 방식으로 WindowManager 생성
 - Create Empty Window
 - Create Canvas with Window Root
 
@@ -183,7 +205,22 @@ public class MyWindow : WindowBase
 
 ## 버전 히스토리
 
-### 1.0.3 (현재)
+### 1.0.4 (현재)
+- **계층 구조 개선**
+  - WindowType별 Container 기반 계층 구조 도입
+  - WindowManager 하위에 5개 Container 자동 생성 (Underlay, Screen, Popup, Overlay, Toast)
+  - Window가 등록 시 자동으로 해당 Container의 자식으로 재부모화
+- **성능 개선**
+  - Hierarchy 순서 업데이트 로직 최적화 (O(n) → O(1))
+  - Screen/Popup Window에 대해 SetAsLastSibling() 직접 호출
+- **에디터 도구 개선**
+  - "Create Window Manager with Containers" 메뉴 추가
+  - Canvas 자동 생성 기능 추가
+  - 기존 메뉴는 "Create Window Manager (Legacy)"로 변경
+- **코드 정리**
+  - 더 이상 사용하지 않는 메서드 주석 처리 (롤백 가능)
+
+### 1.0.3
 - **버그 수정**
 
 ### 1.0.2
