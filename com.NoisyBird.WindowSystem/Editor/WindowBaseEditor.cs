@@ -11,13 +11,11 @@ namespace NoisyBird.WindowSystem.Editor
     {
         private SerializedProperty _windowIdProp;
         private SerializedProperty _windowTypeProp;
-        private SerializedProperty _sceneRuleProp;
 
         private void OnEnable()
         {
             _windowIdProp = serializedObject.FindProperty("_windowId");
             _windowTypeProp = serializedObject.FindProperty("_windowType");
-            _sceneRuleProp = serializedObject.FindProperty("_sceneRule");
         }
 
         public override void OnInspectorGUI()
@@ -33,7 +31,7 @@ namespace NoisyBird.WindowSystem.Editor
 
             // Window ID
             EditorGUILayout.PropertyField(_windowIdProp, new GUIContent("Window ID"));
-            
+
             // Auto-fill button
             EditorGUILayout.BeginHorizontal();
             GUILayout.Space(EditorGUIUtility.labelWidth);
@@ -49,30 +47,13 @@ namespace NoisyBird.WindowSystem.Editor
             // Window Type
             EditorGUILayout.PropertyField(_windowTypeProp, new GUIContent("Window Type"));
 
-            // Scene Rule
-            EditorGUILayout.PropertyField(_sceneRuleProp, new GUIContent("Scene Rule"));
-
-            // Help boxes for Scene Rule
-            switch (window.SceneRule)
-            {
-                case WindowSceneRule.DestroyOnSceneChange:
-                    EditorGUILayout.HelpBox("이 Window는 씬 전환 시 파괴됩니다. 상태는 자동으로 저장됩니다.", MessageType.Info);
-                    break;
-                case WindowSceneRule.HideOnSceneChange:
-                    EditorGUILayout.HelpBox("이 Window는 씬 전환 시 숨겨집니다. 다시 표시할 수 있습니다.", MessageType.Info);
-                    break;
-                case WindowSceneRule.KeepOnSceneChange:
-                    EditorGUILayout.HelpBox("이 Window는 DontDestroyOnLoad로 유지됩니다.", MessageType.Info);
-                    break;
-            }
-
             EditorGUILayout.Space(10);
 
             // Runtime Info
             if (Application.isPlaying)
             {
                 EditorGUILayout.LabelField("Runtime Information", EditorStyles.boldLabel);
-                
+
                 GUI.enabled = false;
                 EditorGUILayout.Toggle("Is Open", window.IsOpen);
                 EditorGUILayout.Toggle("Is Registered", WindowManager.Instance?.IsWindowRegistered(window.WindowId) ?? false);
@@ -141,7 +122,7 @@ namespace NoisyBird.WindowSystem.Editor
             EditorGUILayout.Space(10);
 
             // Draw default inspector for derived class fields
-            DrawPropertiesExcluding(serializedObject, "_windowId", "_windowType", "_sceneRule");
+            DrawPropertiesExcluding(serializedObject, "_windowId", "_windowType");
 
             serializedObject.ApplyModifiedProperties();
         }

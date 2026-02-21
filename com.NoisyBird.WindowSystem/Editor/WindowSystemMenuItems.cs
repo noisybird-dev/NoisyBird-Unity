@@ -34,30 +34,6 @@ namespace NoisyBird.WindowSystem.Editor
             Debug.Log("[WindowSystem] WindowManager with Containers created.");
         }
 
-        [MenuItem(MENU_ROOT + "Create Window Manager (Legacy)", false, 1)]
-        private static void CreateWindowManager()
-        {
-            // 이미 존재하는지 확인
-            WindowManager existing = Object.FindObjectOfType<WindowManager>();
-            if (existing != null)
-            {
-                EditorUtility.DisplayDialog("Window Manager Exists",
-                    "WindowManager already exists in the scene.", "OK");
-                Selection.activeGameObject = existing.gameObject;
-                EditorGUIUtility.PingObject(existing.gameObject);
-                return;
-            }
-
-            // 새로 생성
-            GameObject go = new GameObject("WindowManager");
-            go.AddComponent<WindowManager>();
-
-            Undo.RegisterCreatedObjectUndo(go, "Create Window Manager");
-            Selection.activeGameObject = go;
-
-            Debug.Log("[WindowSystem] WindowManager created.");
-        }
-
         [MenuItem(MENU_ROOT + "Create Empty Window", false, 11)]
         private static void CreateEmptyWindow()
         {
@@ -74,17 +50,32 @@ namespace NoisyBird.WindowSystem.Editor
         [MenuItem(MENU_ROOT + "Create Canvas with Window Root", false, 12)]
         private static void CreateCanvasWithWindowRoot()
         {
-            // Canvas 생성
+            // WindowManager의 UI 카메라 참조 시도
+            Camera uiCamera = null;
+            WindowManager wm = Object.FindObjectOfType<WindowManager>();
+            if (wm != null)
+            {
+                uiCamera = wm.UICamera;
+            }
+
+            // Canvas 생성 (ScreenSpace-Camera 모드)
             GameObject canvasGo = new GameObject("WindowCanvas");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = uiCamera;
+            canvas.sortingLayerName = "UI";
+
+            var scaler = canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
             canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
             // Window Root 생성
             GameObject rootGo = new GameObject("WindowRoot");
             rootGo.transform.SetParent(canvasGo.transform, false);
-            
+
             RectTransform rootRect = rootGo.AddComponent<RectTransform>();
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.one;
@@ -93,8 +84,15 @@ namespace NoisyBird.WindowSystem.Editor
 
             Undo.RegisterCreatedObjectUndo(canvasGo, "Create Canvas with Window Root");
             Selection.activeGameObject = rootGo;
-            
-            Debug.Log("[WindowSystem] Canvas with Window Root created.");
+
+            if (uiCamera == null)
+            {
+                Debug.LogWarning("[WindowSystem] Canvas created but no UI Camera found. Create a WindowManager first or assign the camera manually.");
+            }
+            else
+            {
+                Debug.Log("[WindowSystem] Canvas with Window Root created (ScreenSpace-Camera mode).");
+            }
         }
 
         [MenuItem("Noisy Bird/Window System/Documentation", false, 100)]

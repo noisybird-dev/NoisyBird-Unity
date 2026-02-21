@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace NoisyBird.WindowSystem
 {
@@ -14,11 +14,81 @@ namespace NoisyBird.WindowSystem
 
     /// <summary>
     /// Window 시스템을 관리하는 싱글톤 매니저입니다.
-    /// Window의 열기/닫기, 상태 저장/복구, 씬 전환 처리를 담당합니다.
+    /// Window의 열기/닫기, 상태 저장/복구를 담당합니다.
     /// </summary>
     public class WindowManager : MonoBehaviour
     {
+        /// <summary>
+        /// Screen과 그 위에 열린 Popup들을 하나의 그룹으로 관리합니다.
+        /// </summary>
+        private class ScreenGroup
+        {
+            public WindowBase Screen;
+            public List<WindowBase> Popups = new List<WindowBase>();
+
+            /// <summary>
+            /// Screen과 모든 Popup을 숨깁니다.
+            /// </summary>
+            public void HideAll()
+            {
+                Screen.Hide();
+                foreach (var popup in Popups)
+                    popup.Hide();
+            }
+
+            /// <summary>
+            /// Screen과 모든 Popup을 다시 표시합니다.
+            /// </summary>
+            public void ShowAll()
+            {
+                Screen.Show();
+                foreach (var popup in Popups)
+                    popup.Show();
+            }
+
+            /// <summary>
+            /// Screen과 모든 Popup을 파괴합니다.
+            /// </summary>
+            /// <param name="unregisterAction">등록 해제 콜백</param>
+            public void DestroyAll(Action<string> unregisterAction)
+            {
+                // Popup을 역순으로 파괴
+                for (int i = Popups.Count - 1; i >= 0; i--)
+                {
+                    var popup = Popups[i];
+                    if (popup != null)
+                    {
+                        unregisterAction?.Invoke(popup.WindowId);
+                        popup.DestroyWindow();
+                    }
+                }
+                Popups.Clear();
+
+                // Screen 파괴
+                if (Screen != null)
+                {
+                    unregisterAction?.Invoke(Screen.WindowId);
+                    Screen.DestroyWindow();
+                }
+            }
+        }
+
         private static WindowManager _instance;
+
+        // UI 전용 카메라
+        private Camera _uiCamera;
+
+        /// <summary>
+        /// UI 전용 카메라를 반환합니다.
+        /// </summary>
+        public Camera UICamera => _uiCamera;
+
+        /// <summary>
+        /// 애니메이션 시작/종료 시 호출되는 delegate입니다.
+        /// true = 애니메이션 시작 (터치 차단 등), false = 애니메이션 종료 (터치 해제 등).
+        /// 프로젝트별로 터치 차단 로직을 할당하여 사용합니다.
+        /// </summary>
+        public Action<bool> OnWindowAnim;
 
         /// <summary>
         /// WindowManager의 싱글톤 인스턴스
@@ -44,10 +114,10 @@ namespace NoisyBird.WindowSystem
         // 등록된 모든 Window (WindowId -> WindowBase)
         private Dictionary<string, WindowBase> _registeredWindows = new Dictionary<string, WindowBase>();
 
-        // Screen/Popup Window 스택 (스택 관리됨)
-        private Stack<WindowBase> _windowStack = new Stack<WindowBase>();
+        // Screen/Popup 그룹 스택 (Top = 활성 그룹)
+        private Stack<ScreenGroup> _screenGroups = new Stack<ScreenGroup>();
 
-        // Overlay/Toast Window 리스트 (스택 관리 안됨)
+        // Underlay/Overlay/Toast Window 리스트 (스택 관리 안됨)
         private List<WindowBase> _nonStackWindows = new List<WindowBase>();
 
         // Window 상태 저장소 (WindowId -> WindowState)
@@ -92,37 +162,17 @@ namespace NoisyBird.WindowSystem
 
             // Container 생성
             CreateContainers();
-
-            // 씬 전환 이벤트 등록
-            SceneManager.sceneLoaded += OnSceneLoaded;
-            SceneManager.sceneUnloaded += OnSceneUnloaded;
-        }
-
-        private void OnDestroy()
-        {
-            if (_instance == this)
-            {
-                SceneManager.sceneLoaded -= OnSceneLoaded;
-                SceneManager.sceneUnloaded -= OnSceneUnloaded;
-            }
         }
 
         /// <summary>
-        /// WindowType별 Container GameObject를 생성합니다.
-        /// Underlay -> Screen -> Popup -> Overlay -> Toast 순서로 생성됩니다.
+        /// UI 전용 카메라와 WindowType별 Container GameObject를 생성합니다.
+        /// 각 Container는 개별 Canvas (ScreenSpace-Camera)를 보유하며,
+        /// Sort Order로 렌더링 순서를 관리합니다.
         /// </summary>
         private void CreateContainers()
         {
-            // Canvas 컴포넌트 확인 및 자동 추가
-            Canvas canvas = GetComponent<Canvas>();
-            if (canvas == null)
-            {
-                canvas = gameObject.AddComponent<Canvas>();
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                gameObject.AddComponent<UnityEngine.UI.CanvasScaler>();
-                gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-                Debug.Log("[WindowManager] Canvas component added automatically.");
-            }
+            // UI 전용 카메라 생성
+            CreateUICamera();
 
             // WindowType 순서 정의 (렌더링 순서와 동일)
             WindowType[] orderedTypes = new WindowType[]
@@ -130,34 +180,58 @@ namespace NoisyBird.WindowSystem
                 WindowType.Underlay,
                 WindowType.Screen,
                 WindowType.Popup,
-                WindowType.Overlay,
-                WindowType.Toast
+                WindowType.Toast,
+                WindowType.Overlay
             };
 
             foreach (WindowType type in orderedTypes)
             {
                 GameObject container = new GameObject(_containerNames[type]);
-                RectTransform rectTransform = container.AddComponent<RectTransform>();
 
                 // Container를 WindowManager의 자식으로 설정
                 container.transform.SetParent(transform, false);
 
-                // RectTransform 전체 화면으로 설정
-                rectTransform.anchorMin = Vector2.zero;
-                rectTransform.anchorMax = Vector2.one;
-                rectTransform.sizeDelta = Vector2.zero;
-                rectTransform.anchoredPosition = Vector2.zero;
+                // Canvas 추가 (ScreenSpace-Camera 모드)
+                Canvas canvas = container.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                canvas.worldCamera = _uiCamera;
+                canvas.sortingLayerName = "UI";
+                canvas.sortingOrder = ((int)type + 1) * 100;
+
+                // CanvasScaler 추가 (Scale With Screen Size)
+                var scaler = container.AddComponent<UnityEngine.UI.CanvasScaler>();
+                scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920f, 1080f);
+                scaler.matchWidthOrHeight = 0.5f;
+
+                // GraphicRaycaster 추가
+                container.AddComponent<UnityEngine.UI.GraphicRaycaster>();
 
                 // Container 참조 저장
                 _containersByType[type] = container.transform;
             }
+
+            Debug.Log("[WindowManager] UI Camera and containers created.");
+        }
+
+        /// <summary>
+        /// UI만 촬영하는 전용 카메라를 생성합니다.
+        /// </summary>
+        private void CreateUICamera()
+        {
+            GameObject cameraGo = new GameObject("WindowSystemCamera");
+            cameraGo.transform.SetParent(transform, false);
+
+            _uiCamera = cameraGo.AddComponent<Camera>();
+            _uiCamera.clearFlags = CameraClearFlags.Depth;
+            _uiCamera.cullingMask = 1 << LayerMask.NameToLayer("UI");
+            _uiCamera.depth = 100f;
+            _uiCamera.orthographic = true;
         }
 
         /// <summary>
         /// WindowType에 해당하는 Container Transform을 반환합니다.
         /// </summary>
-        /// <param name="windowType">Window 타입</param>
-        /// <returns>Container Transform, 없으면 null</returns>
         private Transform GetContainerForType(WindowType windowType)
         {
             return _containersByType.TryGetValue(windowType, out Transform container) ? container : null;
@@ -166,7 +240,6 @@ namespace NoisyBird.WindowSystem
         /// <summary>
         /// Window를 적절한 Container의 자식으로 설정합니다.
         /// </summary>
-        /// <param name="window">부모를 설정할 Window</param>
         private void SetWindowParent(WindowBase window)
         {
             Transform targetContainer = GetContainerForType(window.WindowType);
@@ -177,13 +250,11 @@ namespace NoisyBird.WindowSystem
                 return;
             }
 
-            // 이미 올바른 부모라면 변경하지 않음
             if (window.transform.parent == targetContainer)
             {
                 return;
             }
 
-            // Container의 자식으로 설정 (worldPositionStays: false)
             window.transform.SetParent(targetContainer, false);
         }
 
@@ -211,8 +282,6 @@ namespace NoisyBird.WindowSystem
             }
 
             _registeredWindows[window.WindowId] = window;
-
-            // Window를 해당 Container의 자식으로 설정
             SetWindowParent(window);
         }
 
@@ -222,20 +291,19 @@ namespace NoisyBird.WindowSystem
         /// <param name="windowId">등록 해제할 Window ID</param>
         public void UnregisterWindow(string windowId)
         {
-            if (_registeredWindows.ContainsKey(windowId))
-            {
-                _registeredWindows.Remove(windowId);
-            }
+            _registeredWindows.Remove(windowId);
         }
 
+        #region Open Window
+
         /// <summary>
-        /// Window를 엽니다.
+        /// Window를 열거나 로드합니다. 애니메이션이 있으면 재생합니다.
         /// </summary>
         /// <param name="windowId">열 Window ID</param>
         /// <param name="payload">Window에 전달할 데이터 (선택사항)</param>
         /// <param name="restoreState">저장된 상태를 복구할지 여부</param>
         /// <returns>성공 여부</returns>
-        public bool OpenWindow(string windowId, object payload = null, bool restoreState = false)
+        public async Task<bool> OpenWindow(string windowId, object payload = null, bool restoreState = false)
         {
             if (!_registeredWindows.TryGetValue(windowId, out WindowBase window))
             {
@@ -243,10 +311,9 @@ namespace NoisyBird.WindowSystem
                 if (_windowLoader != null)
                 {
                     window = _windowLoader(windowId);
-                    
+
                     if (window != null)
                     {
-                        // 로드 성공 시 자동 등록
                         RegisterWindow(window);
                         Debug.Log($"[WindowManager] Window '{windowId}' loaded and registered automatically.");
                     }
@@ -276,37 +343,126 @@ namespace NoisyBird.WindowSystem
                 window.RestoreState(state);
             }
 
-            // Window 열기
-            window.OnOpen(payload);
-
-            // WindowType에 따라 스택 또는 비스택 리스트에 추가
-            if (window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup)
+            // WindowType에 따라 분기 처리
+            switch (window.WindowType)
             {
-                // Screen/Popup은 스택에 Push
-                _windowStack.Push(window);
-            }
-            else // Underlay, Overlay, Toast
-            {
-                // Underlay/Overlay/Toast는 비스택 리스트에 추가
-                if (!_nonStackWindows.Contains(window))
-                {
-                    _nonStackWindows.Add(window);
-                }
-            }
+                case WindowType.Screen:
+                    await OpenScreen(window, payload);
+                    break;
 
-            // Hierarchy 순서 업데이트
-            UpdateWindowHierarchyOrder(window);
+                case WindowType.Popup:
+                    await OpenPopup(window, payload);
+                    break;
+
+                default: // Underlay, Toast, Overlay
+                    await OpenNonStackWindow(window, payload);
+                    break;
+            }
 
             return true;
         }
 
         /// <summary>
-        /// Window를 닫습니다.
+        /// Screen Window를 엽니다.
+        /// 새 Screen 열기 애니메이션과 이전 Screen 닫기 애니메이션이 동시에 재생됩니다.
+        /// </summary>
+        private async Task OpenScreen(WindowBase window, object payload)
+        {
+            OnWindowAnim?.Invoke(true);
+
+            // 새 ScreenGroup 생성 및 Push
+            var group = new ScreenGroup { Screen = window };
+            _screenGroups.Push(group);
+
+            // Window 열기 (SetActive true)
+            window.OnOpen(payload);
+            window.transform.SetAsLastSibling();
+
+            // 이전 ScreenGroup이 있으면 동시 애니메이션
+            if (_screenGroups.Count > 1)
+            {
+                // 스택에서 이전 그룹 가져오기 (Peek은 현재 새 그룹이므로 한 단계 아래)
+                var previousGroup = GetScreenGroupAt(1);
+
+                if (previousGroup != null)
+                {
+                    // 새 Screen 열기 애니메이션 + 이전 Screen 닫기 애니메이션 동시 재생
+                    await Task.WhenAll(
+                        window.InternalPlayOpenAnimation(),
+                        previousGroup.Screen.InternalPlayCloseAnimation()
+                    );
+
+                    // 애니메이션 완료 후 이전 그룹 숨김
+                    previousGroup.HideAll();
+                }
+            }
+            else
+            {
+                // 이전 그룹 없으면 열기 애니메이션만
+                await window.InternalPlayOpenAnimation();
+            }
+
+            OnWindowAnim?.Invoke(false);
+        }
+
+        /// <summary>
+        /// Popup Window를 엽니다. 열기 애니메이션을 재생합니다.
+        /// </summary>
+        private async Task OpenPopup(WindowBase window, object payload)
+        {
+            if (_screenGroups.Count == 0)
+            {
+                Debug.LogError($"[WindowManager] Cannot open Popup '{window.WindowId}' without an active Screen.");
+                return;
+            }
+
+            OnWindowAnim?.Invoke(true);
+
+            // 활성 ScreenGroup에 Popup 추가
+            _screenGroups.Peek().Popups.Add(window);
+
+            // Window 열기
+            window.OnOpen(payload);
+            window.transform.SetAsLastSibling();
+
+            // 열기 애니메이션
+            await window.InternalPlayOpenAnimation();
+
+            OnWindowAnim?.Invoke(false);
+        }
+
+        /// <summary>
+        /// Underlay/Toast/Overlay Window를 엽니다. 열기 애니메이션을 재생합니다.
+        /// </summary>
+        private async Task OpenNonStackWindow(WindowBase window, object payload)
+        {
+            OnWindowAnim?.Invoke(true);
+
+            if (!_nonStackWindows.Contains(window))
+            {
+                _nonStackWindows.Add(window);
+            }
+
+            window.OnOpen(payload);
+
+            // 열기 애니메이션
+            await window.InternalPlayOpenAnimation();
+
+            OnWindowAnim?.Invoke(false);
+        }
+
+        #endregion
+
+        #region Close Window
+
+        /// <summary>
+        /// Window를 닫습니다. 애니메이션이 있으면 재생 후 닫습니다.
+        /// Underlay/Screen/Popup은 Destroy, Toast/Overlay는 SetActive(false).
         /// </summary>
         /// <param name="windowId">닫을 Window ID</param>
         /// <param name="saveState">상태를 저장할지 여부</param>
         /// <returns>성공 여부</returns>
-        public bool CloseWindow(string windowId, bool saveState = false)
+        public async Task<bool> CloseWindow(string windowId, bool saveState = false)
         {
             if (!_registeredWindows.TryGetValue(windowId, out WindowBase window))
             {
@@ -326,153 +482,239 @@ namespace NoisyBird.WindowSystem
                 SaveWindowState(windowId);
             }
 
-            // Window 닫기
-            window.OnClose();
+            // WindowType에 따라 분기 처리
+            switch (window.WindowType)
+            {
+                case WindowType.Underlay:
+                    await CloseUnderlay(window);
+                    break;
 
-            // WindowType에 따라 스택 또는 비스택 리스트에서 제거
-            if (window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup)
-            {
-                // Stack에서 제거 (Stack은 직접 Remove가 없으므로 재구성)
-                var tempStack = new Stack<WindowBase>();
-                bool found = false;
-                
-                while (_windowStack.Count > 0)
-                {
-                    var w = _windowStack.Pop();
-                    if (w == window)
-                    {
-                        found = true;
-                        break;
-                    }
-                    tempStack.Push(w);
-                }
-                
-                // 나머지 다시 Push
-                while (tempStack.Count > 0)
-                {
-                    _windowStack.Push(tempStack.Pop());
-                }
-            }
-            else // Overlay, Toast
-            {
-                _nonStackWindows.Remove(window);
+                case WindowType.Screen:
+                    await CloseScreen(window);
+                    break;
+
+                case WindowType.Popup:
+                    await ClosePopup(window);
+                    break;
+
+                default: // Toast, Overlay
+                    await CloseNonStackWindow(window);
+                    break;
             }
 
             return true;
         }
 
         /// <summary>
-        /// Window의 Hierarchy 순서를 업데이트합니다.
-        /// Container 구조에서는 Screen/Popup만 순서를 관리합니다 (나중에 열린 것이 위).
+        /// Underlay Window를 닫습니다. (닫기 애니메이션 → Destroy)
         /// </summary>
-        /// <param name="window">순서를 업데이트할 Window</param>
-        private void UpdateWindowHierarchyOrder(WindowBase window)
+        private async Task CloseUnderlay(WindowBase window)
         {
-            if (window == null)
+            OnWindowAnim?.Invoke(true);
+
+            await window.InternalPlayCloseAnimation();
+
+            _nonStackWindows.Remove(window);
+            UnregisterWindow(window.WindowId);
+            window.DestroyWindow();
+
+            OnWindowAnim?.Invoke(false);
+        }
+
+        /// <summary>
+        /// Screen Window를 닫습니다.
+        /// 이전 Screen 열기 애니메이션과 현재 Screen 닫기 애니메이션이 동시에 재생됩니다.
+        /// </summary>
+        private async Task CloseScreen(WindowBase window)
+        {
+            if (_screenGroups.Count == 0)
+            {
+                Debug.LogError($"[WindowManager] No ScreenGroup found for Screen '{window.WindowId}'.");
                 return;
-
-            // Screen/Popup만 순서 관리 (나중에 열린 것이 위로)
-            if (window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup)
-            {
-                // 스택의 최상위로 이동 (마지막 자식으로 설정)
-                window.transform.SetAsLastSibling();
             }
-            // Overlay, Toast, Underlay는 순서 관리 안 함 (Container 내에서 생성 순서 유지)
+
+            var topGroup = _screenGroups.Peek();
+
+            if (topGroup.Screen != window)
+            {
+                Debug.LogError($"[WindowManager] Screen '{window.WindowId}' is not the active Screen. Only the top Screen can be closed.");
+                return;
+            }
+
+            OnWindowAnim?.Invoke(true);
+
+            // Pop
+            _screenGroups.Pop();
+
+            // 이전 ScreenGroup이 있으면 동시 애니메이션
+            if (_screenGroups.Count > 0)
+            {
+                var previousGroup = _screenGroups.Peek();
+
+                // 이전 그룹 표시 (애니메이션 전에 활성화)
+                previousGroup.ShowAll();
+
+                // 이전 Screen 열기 애니메이션 + 현재 Screen 닫기 애니메이션 동시 재생
+                await Task.WhenAll(
+                    previousGroup.Screen.InternalPlayOpenAnimation(),
+                    window.InternalPlayCloseAnimation()
+                );
+            }
+            else
+            {
+                // 이전 그룹 없으면 닫기 애니메이션만
+                await window.InternalPlayCloseAnimation();
+            }
+
+            // 파괴
+            UnregisterWindow(window.WindowId);
+            window.DestroyWindow();
+
+            OnWindowAnim?.Invoke(false);
         }
 
-        // 더 이상 사용하지 않음 (Container 구조에서는 불필요)
-        /*
         /// <summary>
-        /// Window의 Hierarchy 인덱스를 계산합니다.
+        /// Popup Window를 닫습니다. (닫기 애니메이션 → Destroy)
         /// </summary>
-        private int GetHierarchyIndexForWindow(WindowBase window, Transform parent)
+        private async Task ClosePopup(WindowBase window)
         {
-            int targetIndex = 0;
-            bool isStackWindow = window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup;
-
-            // 부모의 모든 자식을 순회하며 적절한 위치 찾기
-            for (int i = 0; i < parent.childCount; i++)
+            if (_screenGroups.Count == 0)
             {
-                Transform child = parent.GetChild(i);
-                WindowBase childWindow = child.GetComponent<WindowBase>();
-
-                if (childWindow == null || childWindow == window)
-                    continue;
-
-                bool childIsStackWindow = childWindow.WindowType == WindowType.Screen || childWindow.WindowType == WindowType.Popup;
-                int childPriority = GetWindowTypePriority(childWindow.WindowType);
-                int windowPriority = GetWindowTypePriority(window.WindowType);
-
-                // 우선순위가 낮은 타입이면 다음 인덱스로
-                if (childPriority < windowPriority)
-                {
-                    targetIndex = i + 1;
-                }
-                // Screen/Popup 영역 내에서는 나중에 열린 것이 위로
-                else if (isStackWindow && childIsStackWindow)
-                {
-                    targetIndex = i + 1;
-                }
+                Debug.LogError($"[WindowManager] No ScreenGroup found for Popup '{window.WindowId}'.");
+                return;
             }
 
-            return targetIndex;
+            OnWindowAnim?.Invoke(true);
+
+            // 닫기 애니메이션
+            await window.InternalPlayCloseAnimation();
+
+            var topGroup = _screenGroups.Peek();
+            topGroup.Popups.Remove(window);
+            UnregisterWindow(window.WindowId);
+            window.DestroyWindow();
+
+            OnWindowAnim?.Invoke(false);
         }
 
         /// <summary>
-        /// WindowType의 우선순위를 반환합니다. (낮을수록 아래에 표시)
-        /// Screen과 Popup은 같은 우선순위를 가집니다.
+        /// Toast/Overlay Window를 닫습니다. (닫기 애니메이션 → SetActive false)
         /// </summary>
-        private int GetWindowTypePriority(WindowType windowType)
+        private async Task CloseNonStackWindow(WindowBase window)
         {
-            switch (windowType)
-            {
-                case WindowType.Underlay: return 0;
-                case WindowType.Screen: return 1;
-                case WindowType.Popup: return 1;  // Screen과 같은 우선순위
-                case WindowType.Overlay: return 2;
-                case WindowType.Toast: return 3;
-                default: return 0;
-            }
+            OnWindowAnim?.Invoke(true);
+
+            // 닫기 애니메이션
+            await window.InternalPlayCloseAnimation();
+
+            _nonStackWindows.Remove(window);
+            window.OnClose();
+
+            OnWindowAnim?.Invoke(false);
         }
-        */
 
         /// <summary>
-        /// 스택의 최상위 Window를 닫습니다. (Screen/Popup만 해당)
+        /// 스택의 최상위 Window를 닫습니다.
+        /// Popup이 있으면 마지막 Popup, 없으면 Screen을 닫습니다.
         /// </summary>
         /// <param name="saveState">상태를 저장할지 여부</param>
         /// <returns>성공 여부</returns>
-        public bool CloseTopWindow(bool saveState = false)
+        public async Task<bool> CloseTopWindow(bool saveState = false)
         {
-            if (_windowStack.Count == 0)
+            if (_screenGroups.Count == 0)
             {
-                Debug.LogWarning("[WindowManager] No window in stack to close.");
+                Debug.LogWarning("[WindowManager] No ScreenGroup to close.");
                 return false;
             }
 
-            WindowBase topWindow = _windowStack.Peek();
-            return CloseWindow(topWindow.WindowId, saveState);
+            var topGroup = _screenGroups.Peek();
+
+            // Popup이 있으면 마지막 Popup 닫기
+            if (topGroup.Popups.Count > 0)
+            {
+                var lastPopup = topGroup.Popups[topGroup.Popups.Count - 1];
+                return await CloseWindow(lastPopup.WindowId, saveState);
+            }
+
+            // Popup이 없으면 Screen 닫기
+            return await CloseWindow(topGroup.Screen.WindowId, saveState);
+        }
+
+        #endregion
+
+        #region Bulk Operations
+
+        /// <summary>
+        /// 모든 ScreenGroup을 파괴합니다. (Toast/Overlay는 유지, 애니메이션 없음)
+        /// </summary>
+        public void CloseAllScreenGroups()
+        {
+            while (_screenGroups.Count > 0)
+            {
+                var group = _screenGroups.Pop();
+                group.DestroyAll(UnregisterWindow);
+            }
         }
 
         /// <summary>
-        /// 모든 열려있는 Window를 닫습니다.
+        /// 모든 열려있는 Window를 닫습니다. (애니메이션 없음)
+        /// ScreenGroup은 Destroy, Toast/Overlay는 임시 닫기(SetActive false).
         /// </summary>
         /// <param name="saveStates">상태를 저장할지 여부</param>
         public void CloseAllWindows(bool saveStates = false)
         {
-            // 스택 Window 닫기 (Pop으로 역순)
-            while (_windowStack.Count > 0)
+            if (saveStates)
             {
-                WindowBase window = _windowStack.Peek();
-                CloseWindow(window.WindowId, saveStates);
+                SaveAllWindowStates();
             }
 
-            // 비스택 Window 닫기
+            // ScreenGroup 전체 파괴
+            CloseAllScreenGroups();
+
+            // 비스택 Window 임시 닫기 (역순)
             for (int i = _nonStackWindows.Count - 1; i >= 0; i--)
             {
-                WindowBase window = _nonStackWindows[i];
-                CloseWindow(window.WindowId, saveStates);
+                var window = _nonStackWindows[i];
+                if (window != null)
+                {
+                    window.OnClose();
+                }
             }
+            _nonStackWindows.Clear();
         }
+
+        /// <summary>
+        /// 모든 Window를 파괴합니다. (로그아웃 등 전체 리셋 시 사용, 애니메이션 없음)
+        /// ScreenGroup + Toast/Overlay 모두 Destroy합니다.
+        /// </summary>
+        public void DestroyAllWindows()
+        {
+            // ScreenGroup 전체 파괴
+            while (_screenGroups.Count > 0)
+            {
+                var group = _screenGroups.Pop();
+                group.DestroyAll(UnregisterWindow);
+            }
+
+            // 비스택 Window 전체 파괴 (역순)
+            for (int i = _nonStackWindows.Count - 1; i >= 0; i--)
+            {
+                var window = _nonStackWindows[i];
+                if (window != null)
+                {
+                    UnregisterWindow(window.WindowId);
+                    window.DestroyWindow();
+                }
+            }
+            _nonStackWindows.Clear();
+
+            // 상태 저장소 클리어
+            _savedStates.Clear();
+        }
+
+        #endregion
+
+        #region State Management
 
         /// <summary>
         /// Window의 현재 상태를 저장합니다.
@@ -498,13 +740,22 @@ namespace NoisyBird.WindowSystem
         /// </summary>
         public void SaveAllWindowStates()
         {
-            // 스택 Window 상태 저장
-            foreach (WindowBase window in _windowStack)
+            foreach (var group in _screenGroups)
             {
-                SaveWindowState(window.WindowId);
+                if (group.Screen != null)
+                {
+                    SaveWindowState(group.Screen.WindowId);
+                }
+
+                foreach (var popup in group.Popups)
+                {
+                    if (popup != null)
+                    {
+                        SaveWindowState(popup.WindowId);
+                    }
+                }
             }
 
-            // 비스택 Window 상태 저장
             foreach (WindowBase window in _nonStackWindows)
             {
                 SaveWindowState(window.WindowId);
@@ -514,8 +765,6 @@ namespace NoisyBird.WindowSystem
         /// <summary>
         /// 저장된 Window 상태를 가져옵니다.
         /// </summary>
-        /// <param name="windowId">Window ID</param>
-        /// <returns>저장된 WindowState, 없으면 null</returns>
         public WindowState GetSavedState(string windowId)
         {
             return _savedStates.TryGetValue(windowId, out WindowState state) ? state : null;
@@ -524,7 +773,6 @@ namespace NoisyBird.WindowSystem
         /// <summary>
         /// 저장된 Window 상태를 제거합니다.
         /// </summary>
-        /// <param name="windowId">Window ID</param>
         public void ClearSavedState(string windowId)
         {
             _savedStates.Remove(windowId);
@@ -538,11 +786,13 @@ namespace NoisyBird.WindowSystem
             _savedStates.Clear();
         }
 
+        #endregion
+
+        #region Query
+
         /// <summary>
         /// Window가 등록되어 있는지 확인합니다.
         /// </summary>
-        /// <param name="windowId">Window ID</param>
-        /// <returns>등록 여부</returns>
         public bool IsWindowRegistered(string windowId)
         {
             return _registeredWindows.ContainsKey(windowId);
@@ -551,8 +801,6 @@ namespace NoisyBird.WindowSystem
         /// <summary>
         /// Window가 열려있는지 확인합니다.
         /// </summary>
-        /// <param name="windowId">Window ID</param>
-        /// <returns>열림 여부</returns>
         public bool IsWindowOpen(string windowId)
         {
             return _registeredWindows.TryGetValue(windowId, out WindowBase window) && window.IsOpen;
@@ -561,77 +809,30 @@ namespace NoisyBird.WindowSystem
         /// <summary>
         /// 등록된 Window를 가져옵니다.
         /// </summary>
-        /// <param name="windowId">Window ID</param>
-        /// <returns>WindowBase, 없으면 null</returns>
         public WindowBase GetWindow(string windowId)
         {
             return _registeredWindows.TryGetValue(windowId, out WindowBase window) ? window : null;
         }
 
-        /// <summary>
-        /// 씬이 로드될 때 호출됩니다.
-        /// </summary>
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            // 씬 전환 후 처리는 여기서 수행
-            // 필요시 특정 Window를 자동으로 열거나 상태를 복구할 수 있음
-        }
+        #endregion
+
+        #region Helpers
 
         /// <summary>
-        /// 씬이 언로드될 때 호출됩니다.
+        /// Stack에서 특정 인덱스의 ScreenGroup을 가져옵니다. (0 = Top)
         /// </summary>
-        private void OnSceneUnloaded(Scene scene)
+        private ScreenGroup GetScreenGroupAt(int index)
         {
-            // 씬 전환 전 처리
-            // Stack과 NonStack 모두 처리
-            List<WindowBase> allWindows = new List<WindowBase>();
-            allWindows.AddRange(_windowStack);
-            allWindows.AddRange(_nonStackWindows);
-
-            foreach (WindowBase window in allWindows)
+            int current = 0;
+            foreach (var group in _screenGroups)
             {
-                if (window == null)
-                    continue;
-
-                switch (window.SceneRule)
-                {
-                    case WindowSceneRule.DestroyOnSceneChange:
-                        // 상태 저장 후 파괴
-                        SaveWindowState(window.WindowId);
-                        CloseWindow(window.WindowId);
-                        UnregisterWindow(window.WindowId);
-                        break;
-
-                    case WindowSceneRule.HideOnSceneChange:
-                        // 상태 저장 후 숨김
-                        SaveWindowState(window.WindowId);
-                        window.Hide();
-                        
-                        // 스택 또는 비스택 리스트에서 제거
-                        if (window.WindowType == WindowType.Screen || window.WindowType == WindowType.Popup)
-                        {
-                            // Stack에서 제거는 CloseWindow에서 처리되므로 여기서는 직접 제거
-                            var tempStack = new Stack<WindowBase>();
-                            while (_windowStack.Count > 0)
-                            {
-                                var w = _windowStack.Pop();
-                                if (w != window)
-                                    tempStack.Push(w);
-                            }
-                            while (tempStack.Count > 0)
-                                _windowStack.Push(tempStack.Pop());
-                        }
-                        else
-                        {
-                            _nonStackWindows.Remove(window);
-                        }
-                        break;
-
-                    case WindowSceneRule.KeepOnSceneChange:
-                        // 아무것도 하지 않음 (유지)
-                        break;
-                }
+                if (current == index)
+                    return group;
+                current++;
             }
+            return null;
         }
+
+        #endregion
     }
 }

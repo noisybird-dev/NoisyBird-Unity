@@ -45,18 +45,18 @@ namespace NoisyBird.WindowSystem.Examples
         /// <summary>
         /// 인벤토리 Window 토글
         /// </summary>
-        public void ToggleInventory()
+        public async void ToggleInventory()
         {
             if (_inventoryWindow == null) return;
 
             if (WindowManager.Instance.IsWindowOpen(_inventoryWindow.WindowId))
             {
-                WindowManager.Instance.CloseWindow(_inventoryWindow.WindowId, saveState: true);
+                await WindowManager.Instance.CloseWindow(_inventoryWindow.WindowId, saveState: true);
                 Debug.Log("[Example] Inventory closed and state saved");
             }
             else
             {
-                WindowManager.Instance.OpenWindow(_inventoryWindow.WindowId, restoreState: true);
+                await WindowManager.Instance.OpenWindow(_inventoryWindow.WindowId, restoreState: true);
                 Debug.Log("[Example] Inventory opened and state restored");
             }
         }
@@ -64,18 +64,18 @@ namespace NoisyBird.WindowSystem.Examples
         /// <summary>
         /// 설정 Window 토글
         /// </summary>
-        public void ToggleSettings()
+        public async void ToggleSettings()
         {
             if (_settingsWindow == null) return;
 
             if (WindowManager.Instance.IsWindowOpen(_settingsWindow.WindowId))
             {
-                WindowManager.Instance.CloseWindow(_settingsWindow.WindowId, saveState: true);
+                await WindowManager.Instance.CloseWindow(_settingsWindow.WindowId, saveState: true);
                 Debug.Log("[Example] Settings closed and state saved");
             }
             else
             {
-                WindowManager.Instance.OpenWindow(_settingsWindow.WindowId, restoreState: true);
+                await WindowManager.Instance.OpenWindow(_settingsWindow.WindowId, restoreState: true);
                 Debug.Log("[Example] Settings opened and state restored");
             }
         }
@@ -83,7 +83,7 @@ namespace NoisyBird.WindowSystem.Examples
         /// <summary>
         /// 확인 팝업 표시
         /// </summary>
-        public void ShowConfirmPopup()
+        public async void ShowConfirmPopup()
         {
             if (_confirmPopup == null) return;
 
@@ -94,7 +94,7 @@ namespace NoisyBird.WindowSystem.Examples
                 onCancel: () => Debug.Log("[Example] Cancelled!")
             );
 
-            WindowManager.Instance.OpenWindow(_confirmPopup.WindowId, payload: data);
+            await WindowManager.Instance.OpenWindow(_confirmPopup.WindowId, payload: data);
         }
 
         /// <summary>
@@ -109,18 +109,18 @@ namespace NoisyBird.WindowSystem.Examples
         /// <summary>
         /// 저장된 상태로 모든 Window 복구
         /// </summary>
-        public void LoadAllStates()
+        public async void LoadAllStates()
         {
             // 인벤토리 복구
             if (_inventoryWindow != null && WindowManager.Instance.GetSavedState(_inventoryWindow.WindowId) != null)
             {
-                WindowManager.Instance.OpenWindow(_inventoryWindow.WindowId, restoreState: true);
+                await WindowManager.Instance.OpenWindow(_inventoryWindow.WindowId, restoreState: true);
             }
 
             // 설정 복구
             if (_settingsWindow != null && WindowManager.Instance.GetSavedState(_settingsWindow.WindowId) != null)
             {
-                WindowManager.Instance.OpenWindow(_settingsWindow.WindowId, restoreState: true);
+                await WindowManager.Instance.OpenWindow(_settingsWindow.WindowId, restoreState: true);
             }
 
             Debug.Log("[Example] All window states restored");

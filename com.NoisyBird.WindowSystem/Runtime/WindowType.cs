@@ -21,13 +21,13 @@ namespace NoisyBird.WindowSystem
         Popup,
 
         /// <summary>
-        /// 항상 떠 있는 오버레이 (글로벌 HUD, 상단바 등)
-        /// </summary>
-        Overlay,
-
-        /// <summary>
         /// 잠깐 나왔다 사라지는 알림
         /// </summary>
-        Toast
+        Toast,
+
+        /// <summary>
+        /// 모든 창 위에 떠 있는 오버레이 (글로벌 HUD, 상단바 등)
+        /// </summary>
+        Overlay,
     }
 }

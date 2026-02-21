@@ -4,37 +4,44 @@ Unity 기반 게임에서 사용할 수 있는 강력한 공통 UI Window 시스
 
 ## 주요 기능
 
-### 🎯 핵심 기능
-- **5단계 Window 타입**: Underlay, Screen, Popup, Overlay, Toast
-- **스택 기반 관리**: Screen/Popup은 자동 스택 관리 (LIFO)
-- **자동 Hierarchy 정렬**: WindowType에 따라 렌더링 순서 자동 관리
-- **상태 저장/복구**: 씬 전환 후에도 Window 상태 완벽 복구
-- **씬 전환 규칙**: Window별로 씬 전환 시 동작 정의 (파괴/숨김/유지)
+### 핵심 기능
+- **5단계 Window 타입**: Underlay, Screen, Popup, Toast, Overlay
+- **ScreenGroup 기반 관리**: Screen + Popup을 그룹으로 묶어 전환 관리
+- **전용 UI 카메라**: UI 레이어만 촬영하는 전용 카메라 자동 생성
+- **WindowType별 Canvas**: 각 타입별 독립 Canvas (ScreenSpace-Camera, Sort Order 자동 설정)
+- **애니메이션 시스템**: async/await 기반 열기/닫기 애니메이션 지원
+- **상태 저장/복구**: Window 상태 완벽 복구
 
-### 🔧 고급 기능
+### 고급 기능
 - **자동 상태 관리**: `AutoStateAttribute` 기반 자동 상태 저장/복구
 - **커스텀 리소스 로더**: 프로젝트별 Window 로딩 방식 커스터마이징
+- **애니메이션 delegate**: `OnWindowAnim` 으로 터치 차단 등 프로젝트별 처리
 - **에디터 도구**: 실시간 모니터링 및 디버깅 도구
 
 ## Window 타입
 
-렌더링 순서 (아래 → 위):
+렌더링 순서 (Sort Order):
 
 ```
-Underlay (0)  ← 배경 UI
+Underlay (0)  → Sort Order 100  ← 배경 UI, 닫기 시 Destroy
     ↓
-Screen/Popup (1)  ← 스택 관리, 나중에 열린 것이 위
+Screen (1)    → Sort Order 200  ← 전체 화면, ScreenGroup으로 관리
     ↓
-Overlay (2)  ← 글로벌 HUD, 상단바
+Popup (2)     → Sort Order 300  ← Screen 위 팝업, 닫기 시 Destroy
     ↓
-Toast (3)  ← 알림, 최상위
+Toast (3)     → Sort Order 400  ← 알림, 닫기 시 SetActive(false)
+    ↓
+Overlay (4)   → Sort Order 500  ← 글로벌 HUD, 닫기 시 SetActive(false)
 ```
 
-- **Underlay**: 배경 UI (비스택)
-- **Screen**: 전체 화면 UI (스택)
-- **Popup**: 팝업 UI (스택)
-- **Overlay**: 항상 떠있는 UI (비스택)
-- **Toast**: 임시 알림 (비스택)
+### 닫기 규칙
+| WindowType | 닫기 방식 | 비고 |
+|---|---|---|
+| Underlay | Destroy | 항상 파괴 |
+| Screen | Destroy + 이전 그룹 복원 | ScreenGroup 단위 관리 |
+| Popup | Destroy | 소속 Screen 숨김 시 함께 숨김 |
+| Toast | SetActive(false) | `DestroyAllWindows()`로만 파괴 |
+| Overlay | SetActive(false) | `DestroyAllWindows()`로만 파괴 |
 
 ## 설치
 
@@ -44,24 +51,21 @@ Unity Package Manager를 통해 설치할 수 있습니다.
 
 ### 0. Window Manager 설정
 
-먼저 씬에 Window Manager를 생성합니다:
-
 ```
 Unity 메뉴 > GameObject > Noisy Bird > Window System > Create Window Manager with Containers
 ```
 
-이렇게 하면 다음과 같은 계층 구조가 생성됩니다:
+다음과 같은 계층 구조가 생성됩니다:
 
 ```
-WindowManager (Canvas 자동 부착)
-  ├─ UnderlayContainer
-  ├─ ScreenContainer
-  ├─ PopupContainer
-  ├─ OverlayContainer
-  └─ ToastContainer
+WindowManager (DontDestroyOnLoad)
+├── WindowSystemCamera (Camera: depth-only, UI layer, orthographic)
+├── UnderlayContainer (Canvas: ScreenSpace-Camera, SortOrder=100)
+├── ScreenContainer (Canvas: ScreenSpace-Camera, SortOrder=200)
+├── PopupContainer (Canvas: ScreenSpace-Camera, SortOrder=300)
+├── ToastContainer (Canvas: ScreenSpace-Camera, SortOrder=400)
+└── OverlayContainer (Canvas: ScreenSpace-Camera, SortOrder=500)
 ```
-
-각 Window는 자동으로 해당 WindowType의 Container 하위에 배치됩니다.
 
 ### 1. Window 생성
 
@@ -72,19 +76,17 @@ public class MyWindow : WindowBase
 {
     private void Start()
     {
-        // Window 등록
         WindowManager.Instance.RegisterWindow(this);
     }
 
     public override WindowState CaptureState()
     {
-        // Window 상태 저장 로직
         return new MyWindowState();
     }
 
     public override void RestoreState(WindowState state)
     {
-        // Window 상태 복구 로직
+        // 상태 복구 로직
     }
 }
 ```
@@ -92,20 +94,88 @@ public class MyWindow : WindowBase
 ### 2. Window 관리
 
 ```csharp
-// Window 열기
-WindowManager.Instance.OpenWindow("MyWindowId");
+// Window 열기 (async)
+await WindowManager.Instance.OpenWindow("MyWindowId");
 
-// Window 닫기
-WindowManager.Instance.CloseWindow("MyWindowId");
+// Window 닫기 (async)
+await WindowManager.Instance.CloseWindow("MyWindowId");
 
-// 최상위 스택 Window 닫기 (Screen/Popup만)
-WindowManager.Instance.CloseTopWindow();
+// 최상위 Window 닫기 (Popup 우선, 없으면 Screen)
+await WindowManager.Instance.CloseTopWindow();
 
-// 모든 Window 닫기
+// 모든 ScreenGroup 파괴 (Toast/Overlay 유지)
+WindowManager.Instance.CloseAllScreenGroups();
+
+// 모든 Window 닫기 (ScreenGroup Destroy + Toast/Overlay SetActive false)
 WindowManager.Instance.CloseAllWindows(saveStates: true);
+
+// 전체 리셋 (로그아웃 등, 모든 Window Destroy)
+WindowManager.Instance.DestroyAllWindows();
 ```
 
-### 3. 자동 상태 관리
+### 3. ScreenGroup 동작
+
+```
+1. Screen A 열림 → ScreenGroup A 생성
+2. Popup X 열림 → ScreenGroup A에 추가
+3. Screen B 열림 → ScreenGroup A 숨김 → ScreenGroup B 생성
+   (Screen B 열기 애니메이션 + Screen A 닫기 애니메이션 동시 재생)
+4. Screen B 닫힘 → ScreenGroup B Destroy → ScreenGroup A 복원
+   (Screen A 열기 애니메이션 + Screen B 닫기 애니메이션 동시 재생)
+```
+
+### 4. 애니메이션
+
+```csharp
+public class MyScreen : WindowBase
+{
+    [SerializeField] private CanvasGroup _canvasGroup;
+
+    protected override async Task PlayOpenAnimation()
+    {
+        // DOTween, Animator 등 사용 가능
+        _canvasGroup.alpha = 0f;
+        while (_canvasGroup.alpha < 1f)
+        {
+            _canvasGroup.alpha += Time.deltaTime * 3f;
+            await Task.Yield();
+        }
+    }
+
+    protected override async Task PlayCloseAnimation()
+    {
+        while (_canvasGroup.alpha > 0f)
+        {
+            _canvasGroup.alpha -= Time.deltaTime * 3f;
+            await Task.Yield();
+        }
+    }
+
+    // ... CaptureState, RestoreState 생략
+}
+```
+
+### 5. 터치 차단 (프로젝트별 설정)
+
+```csharp
+WindowManager.Instance.OnWindowAnim = (isAnimating) =>
+{
+    touchBlocker.SetActive(isAnimating);
+};
+```
+
+### 6. Destroy 이벤트 (Addressable 해제 등)
+
+```csharp
+var window = WindowManager.Instance.GetWindow("MyWindow");
+window.OnWindowDestroy += (w) =>
+{
+    // Addressable 에셋 해제 등
+    Addressables.Release(handle);
+};
+```
+
+### 7. 자동 상태 관리
 
 ```csharp
 public class SettingsWindow : AutoStateWindow
@@ -113,15 +183,14 @@ public class SettingsWindow : AutoStateWindow
     [AutoState] private ScrollRect scrollRect;
     [AutoState] private Toggle soundToggle;
     [AutoState] private Slider volumeSlider;
-    
+
     // 자동으로 상태 저장/복구됨!
 }
 ```
 
-### 4. 커스텀 Window 로더
+### 8. 커스텀 Window 로더
 
 ```csharp
-// 게임 시작 시 로더 설정
 WindowManager.Instance.SetWindowLoader(LoadWindowFromResources);
 
 private WindowBase LoadWindowFromResources(string windowId)
@@ -131,8 +200,8 @@ private WindowBase LoadWindowFromResources(string windowId)
     return instance.GetComponent<WindowBase>();
 }
 
-// 이제 등록되지 않은 Window도 자동 로드됨
-WindowManager.Instance.OpenWindow("NewWindow");
+// 등록되지 않은 Window도 자동 로드됨
+await WindowManager.Instance.OpenWindow("NewWindow");
 ```
 
 ## 에디터 도구
@@ -140,59 +209,25 @@ WindowManager.Instance.OpenWindow("NewWindow");
 ### Window Manager 에디터 윈도우
 **메뉴**: `NoisyBird > Window System > Window Manager`
 
-- 📊 실시간 Window 모니터링
-- 🎮 Window 열기/닫기 제어
-- 💾 상태 저장/복구 관리
-- 📋 스택/비스택 Window 구분 표시
+- 실시간 Window 모니터링
+- ScreenGroup 트리 구조 시각화
+- Window 열기/닫기 제어
+- 상태 저장/복구 관리
+- Destroy All 버튼
 
 ### 커스텀 인스펙터
 `WindowBase`를 상속받는 모든 컴포넌트에 자동 적용:
 - Window ID 자동 채우기
-- WindowType 및 SceneRule 설정
+- WindowType 설정
 - 런타임 제어 버튼
 
 ### 메뉴 아이템
 **메뉴**: `GameObject > Noisy Bird > Window System`
-- **Create Window Manager with Containers** - Container 기반 계층 구조로 WindowManager 생성 (권장)
-- Create Window Manager (Legacy) - 기존 방식으로 WindowManager 생성
+- **Create Window Manager with Containers** - 전용 카메라 + Container 기반 WindowManager 생성
 - Create Empty Window
 - Create Canvas with Window Root
 
 자세한 내용은 [Editor Tools 문서](Editor/EDITOR_TOOLS.md)를 참고하세요.
-
-## 고급 사용법
-
-### Hierarchy 자동 정렬
-
-Window가 열릴 때 자동으로 WindowType에 따라 Hierarchy 순서가 정렬됩니다:
-
-```csharp
-// 자동으로 올바른 순서로 정렬됨
-WindowManager.Instance.OpenWindow("Background");  // Underlay
-WindowManager.Instance.OpenWindow("Inventory");   // Screen
-WindowManager.Instance.OpenWindow("Confirm");     // Popup (Screen보다 위)
-WindowManager.Instance.OpenWindow("HUD");         // Overlay (Popup보다 위)
-WindowManager.Instance.OpenWindow("Toast");       // Toast (최상위)
-```
-
-### 씬 전환 규칙
-
-```csharp
-public class MyWindow : WindowBase
-{
-    private void Awake()
-    {
-        // 씬 전환 시 파괴
-        SceneRule = WindowSceneRule.DestroyOnSceneChange;
-        
-        // 씬 전환 시 숨김 (상태는 유지)
-        // SceneRule = WindowSceneRule.HideOnSceneChange;
-        
-        // 씬 전환 시 유지 (DontDestroyOnLoad)
-        // SceneRule = WindowSceneRule.KeepOnSceneChange;
-    }
-}
-```
 
 ## 예제
 
@@ -205,50 +240,50 @@ public class MyWindow : WindowBase
 
 ## 버전 히스토리
 
-### 1.0.4 (현재)
-- **계층 구조 개선**
-  - WindowType별 Container 기반 계층 구조 도입
-  - WindowManager 하위에 5개 Container 자동 생성 (Underlay, Screen, Popup, Overlay, Toast)
-  - Window가 등록 시 자동으로 해당 Container의 자식으로 재부모화
-- **성능 개선**
-  - Hierarchy 순서 업데이트 로직 최적화 (O(n) → O(1))
-  - Screen/Popup Window에 대해 SetAsLastSibling() 직접 호출
-- **에디터 도구 개선**
-  - "Create Window Manager with Containers" 메뉴 추가
-  - Canvas 자동 생성 기능 추가
-  - 기존 메뉴는 "Create Window Manager (Legacy)"로 변경
-- **코드 정리**
-  - 더 이상 사용하지 않는 메서드 주석 처리 (롤백 가능)
+### 1.1.0 (현재)
+- **전용 UI 카메라**
+  - WindowSystemCamera 자동 생성 (depth-only, UI 레이어만 촬영, orthographic)
+- **WindowType별 독립 Canvas**
+  - 각 Container에 ScreenSpace-Camera Canvas 자동 부착
+  - SortingLayer: UI, Sort Order: (WindowType + 1) * 100
+  - CanvasScaler (ScaleWithScreenSize, 1920x1080)
+- **ScreenGroup 구조 도입**
+  - Screen + Popup을 그룹으로 묶어 관리
+  - Screen 전환 시 이전 그룹 자동 숨김/복원
+  - `Stack<ScreenGroup>` 기반 LIFO 관리
+- **닫기 모드 분리**
+  - Underlay/Screen/Popup: Destroy (완전 닫기)
+  - Toast/Overlay: SetActive(false) (임시 닫기)
+  - `DestroyAllWindows()`: 전체 리셋용
+  - `CloseAllScreenGroups()`: ScreenGroup만 파괴
+- **애니메이션 시스템**
+  - `PlayOpenAnimation()` / `PlayCloseAnimation()` async Task 메서드
+  - Screen 전환 시 양쪽 애니메이션 동시 재생 (`Task.WhenAll`)
+  - `OnWindowAnim` delegate로 터치 차단 위임
+- **Destroy 이벤트**
+  - `OnWindowDestroy` 이벤트 (Addressable 에셋 해제 등에 활용)
+- **WindowSceneRule 제거**
+  - 씬 전환 규칙 삭제 (ScreenGroup 구조로 대체)
+- **OpenWindow/CloseWindow async 전환**
+  - `Task<bool>` 반환으로 애니메이션 완료 대기 가능
+
+### 1.0.4
+- 계층 구조 개선 (WindowType별 Container)
+- Hierarchy 순서 업데이트 최적화
 
 ### 1.0.3
-- **버그 수정**
+- 버그 수정
 
 ### 1.0.2
-- **Window 타입 확장**
-  - Underlay 타입 추가
-  - 5단계 렌더링 순서 (Underlay < Screen/Popup < Overlay < Toast)
-- **스택 관리 개선**
-  - Screen/Popup을 `Stack<WindowBase>`로 변경
-  - `CloseTopWindow()` 메서드 추가
-  - 자동 Hierarchy 정렬 시스템
-- **커스텀 로더 시스템**
-  - `WindowLoaderDelegate` 추가
-  - 프로젝트별 리소스 로딩 커스터마이징
-- **버그 수정**
-  - `OnSceneUnloaded` 스택 처리 수정
+- Underlay 타입 추가
+- Stack 관리 개선, CloseTopWindow 추가
+- 커스텀 로더 시스템
 
 ### 1.0.1
 - 에디터 도구 추가
-  - WindowManagerEditorWindow (실시간 모니터링)
-  - WindowBaseEditor (커스텀 인스펙터)
-  - WindowSystemMenuItems (메뉴 아이템)
-- 에디터 도구 문서 추가
 
 ### 1.0.0
 - 초기 릴리즈
-- WindowBase, WindowManager, WindowState 핵심 클래스
-- WindowType, WindowSceneRule Enum
-- 기본 상태 저장/복구 시스템
 
 ## 라이선스
 

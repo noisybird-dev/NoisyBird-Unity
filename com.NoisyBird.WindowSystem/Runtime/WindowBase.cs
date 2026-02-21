@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -15,9 +17,6 @@ namespace NoisyBird.WindowSystem
 
         [Tooltip("Window의 타입")]
         [SerializeField] private WindowType _windowType = WindowType.Screen;
-
-        [Tooltip("씬 전환 시 Window의 처리 규칙")]
-        [SerializeField] private WindowSceneRule _sceneRule = WindowSceneRule.DestroyOnSceneChange;
 
         /// <summary>
         /// Window를 식별하기 위한 고유 ID
@@ -38,18 +37,14 @@ namespace NoisyBird.WindowSystem
         }
 
         /// <summary>
-        /// 씬 전환 시 Window의 처리 규칙
-        /// </summary>
-        public WindowSceneRule SceneRule
-        {
-            get => _sceneRule;
-            set => _sceneRule = value;
-        }
-
-        /// <summary>
         /// Window가 현재 열려있는지 여부
         /// </summary>
         public bool IsOpen { get; private set; }
+
+        /// <summary>
+        /// Window가 파괴될 때 호출되는 이벤트 (Addressable 해제 등에 활용)
+        /// </summary>
+        public event Action<WindowBase> OnWindowDestroy;
 
         /// <summary>
         /// 현재 Window의 상태를 캡처합니다.
@@ -74,12 +69,22 @@ namespace NoisyBird.WindowSystem
         }
 
         /// <summary>
-        /// Window가 닫힐 때 호출됩니다.
+        /// Window를 임시로 닫습니다. (SetActive false, 재사용 가능)
         /// </summary>
         public virtual void OnClose()
         {
             IsOpen = false;
             gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Window를 파괴합니다. OnWindowDestroy 이벤트 호출 후 GameObject를 파괴합니다.
+        /// </summary>
+        public virtual void DestroyWindow()
+        {
+            IsOpen = false;
+            OnWindowDestroy?.Invoke(this);
+            Destroy(gameObject);
         }
 
         /// <summary>
@@ -97,6 +102,30 @@ namespace NoisyBird.WindowSystem
         {
             gameObject.SetActive(true);
         }
+
+        /// <summary>
+        /// 열기 애니메이션을 재생합니다. override하여 구현합니다.
+        /// 기본값: 즉시 완료 (애니메이션 없음).
+        /// </summary>
+        /// <returns>애니메이션 완료를 나타내는 Task</returns>
+        protected virtual Task PlayOpenAnimation() => Task.CompletedTask;
+
+        /// <summary>
+        /// 닫기 애니메이션을 재생합니다. override하여 구현합니다.
+        /// 기본값: 즉시 완료 (애니메이션 없음).
+        /// </summary>
+        /// <returns>애니메이션 완료를 나타내는 Task</returns>
+        protected virtual Task PlayCloseAnimation() => Task.CompletedTask;
+
+        /// <summary>
+        /// 열기 애니메이션을 외부에서 호출할 수 있도록 하는 내부 메서드입니다.
+        /// </summary>
+        internal Task InternalPlayOpenAnimation() => PlayOpenAnimation();
+
+        /// <summary>
+        /// 닫기 애니메이션을 외부에서 호출할 수 있도록 하는 내부 메서드입니다.
+        /// </summary>
+        internal Task InternalPlayCloseAnimation() => PlayCloseAnimation();
 
         protected override void OnValidate()
         {

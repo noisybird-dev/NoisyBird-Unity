@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace NoisyBird.WindowSystem.Editor
 {
@@ -12,17 +11,18 @@ namespace NoisyBird.WindowSystem.Editor
     {
         private Vector2 _scrollPosition;
         private bool _showRegisteredWindows = true;
-        private bool _showStackWindows = true;
+        private bool _showScreenGroups = true;
         private bool _showNonStackWindows = true;
         private bool _showSavedStates = true;
         private bool _autoRefresh = true;
         private double _lastRefreshTime;
-        private const double REFRESH_INTERVAL = 0.5; // 0.5초마다 자동 갱신
+        private const double REFRESH_INTERVAL = 0.5;
 
         // 스타일
         private GUIStyle _headerStyle;
         private GUIStyle _windowItemStyle;
         private GUIStyle _stateItemStyle;
+        private GUIStyle _groupStyle;
         private bool _stylesInitialized;
 
         [MenuItem("Noisy Bird/Window System/Window Manager")]
@@ -49,14 +49,14 @@ namespace NoisyBird.WindowSystem.Editor
             }
 
             DrawToolbar();
-            
+
             _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-            
+
             DrawRegisteredWindows();
-            DrawStackWindows();
+            DrawScreenGroups();
             DrawNonStackWindows();
             DrawSavedStates();
-            
+
             EditorGUILayout.EndScrollView();
         }
 
@@ -82,6 +82,12 @@ namespace NoisyBird.WindowSystem.Editor
                 margin = new RectOffset(0, 0, 2, 2)
             };
 
+            _groupStyle = new GUIStyle(EditorStyles.helpBox)
+            {
+                padding = new RectOffset(8, 8, 6, 6),
+                margin = new RectOffset(0, 0, 4, 4)
+            };
+
             _stylesInitialized = true;
         }
 
@@ -103,6 +109,14 @@ namespace NoisyBird.WindowSystem.Editor
                 if (EditorUtility.DisplayDialog("Confirm", "Close all open windows?", "Yes", "No"))
                 {
                     WindowManager.Instance?.CloseAllWindows(saveStates: true);
+                }
+            }
+
+            if (GUILayout.Button("Destroy All", EditorStyles.toolbarButton, GUILayout.Width(100)))
+            {
+                if (EditorUtility.DisplayDialog("Confirm", "Destroy all windows? This cannot be undone.", "Yes", "No"))
+                {
+                    WindowManager.Instance?.DestroyAllWindows();
                 }
             }
 
@@ -167,8 +181,7 @@ namespace NoisyBird.WindowSystem.Editor
             EditorGUILayout.BeginVertical();
             EditorGUILayout.LabelField("Window ID", windowId, EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Type", window.WindowType.ToString());
-            EditorGUILayout.LabelField("Scene Rule", window.SceneRule.ToString());
-            EditorGUILayout.LabelField("Is Open", window.IsOpen ? "✓ Yes" : "✗ No");
+            EditorGUILayout.LabelField("Is Open", window.IsOpen ? "O Yes" : "X No");
             EditorGUILayout.LabelField("GameObject", window.gameObject.name);
             EditorGUILayout.EndVertical();
 
@@ -208,11 +221,11 @@ namespace NoisyBird.WindowSystem.Editor
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawStackWindows()
+        private void DrawScreenGroups()
         {
-            _showStackWindows = EditorGUILayout.BeginFoldoutHeaderGroup(_showStackWindows, "Stack Windows (Screen/Popup)");
+            _showScreenGroups = EditorGUILayout.BeginFoldoutHeaderGroup(_showScreenGroups, "Screen Groups (Screen/Popup Stack)");
 
-            if (_showStackWindows)
+            if (_showScreenGroups)
             {
                 if (!Application.isPlaying || WindowManager.Instance == null)
                 {
@@ -220,33 +233,22 @@ namespace NoisyBird.WindowSystem.Editor
                 }
                 else
                 {
-                    var stackWindows = GetStackWindows();
+                    var screenGroups = GetScreenGroups();
 
-                    if (stackWindows.Count == 0)
+                    if (screenGroups == null || screenGroups.Count == 0)
                     {
-                        EditorGUILayout.HelpBox("No stack windows are currently open.", MessageType.Info);
+                        EditorGUILayout.HelpBox("No screen groups are currently active.", MessageType.Info);
                     }
                     else
                     {
-                        EditorGUILayout.LabelField($"Total: {stackWindows.Count}", EditorStyles.miniLabel);
+                        EditorGUILayout.LabelField($"Total Groups: {screenGroups.Count}", EditorStyles.miniLabel);
 
-                        for (int i = stackWindows.Count - 1; i >= 0; i--)
+                        int index = 0;
+                        foreach (var group in screenGroups)
                         {
-                            var window = stackWindows[i];
-                            if (window != null)
-                            {
-                                EditorGUILayout.BeginHorizontal(_windowItemStyle);
-                                EditorGUILayout.LabelField($"[{stackWindows.Count - i}]", GUILayout.Width(30));
-                                EditorGUILayout.LabelField(window.WindowId, EditorStyles.boldLabel);
-                                EditorGUILayout.LabelField(window.WindowType.ToString(), GUILayout.Width(80));
-                                
-                                if (GUILayout.Button("Close", GUILayout.Width(60)))
-                                {
-                                    WindowManager.Instance.CloseWindow(window.WindowId, saveState: true);
-                                }
-                                
-                                EditorGUILayout.EndHorizontal();
-                            }
+                            bool isTop = (index == 0); // Stack 순회 시 첫 번째가 Top
+                            DrawScreenGroup(group, index, isTop);
+                            index++;
                         }
                     }
                 }
@@ -256,9 +258,68 @@ namespace NoisyBird.WindowSystem.Editor
             EditorGUILayout.Space(5);
         }
 
+        private void DrawScreenGroup(object group, int stackIndex, bool isTop)
+        {
+            if (group == null) return;
+
+            // Reflection으로 ScreenGroup 필드 접근
+            var groupType = group.GetType();
+            var screenField = groupType.GetField("Screen");
+            var popupsField = groupType.GetField("Popups");
+
+            if (screenField == null || popupsField == null) return;
+
+            var screen = screenField.GetValue(group) as WindowBase;
+            var popups = popupsField.GetValue(group) as List<WindowBase>;
+
+            if (screen == null) return;
+
+            EditorGUILayout.BeginVertical(_groupStyle);
+
+            string label = isTop ? $"[Active] Screen: {screen.WindowId}" : $"[Hidden] Screen: {screen.WindowId}";
+            EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+
+            if (popups != null && popups.Count > 0)
+            {
+                EditorGUI.indentLevel++;
+                foreach (var popup in popups)
+                {
+                    if (popup != null)
+                    {
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField($"Popup: {popup.WindowId}");
+
+                        if (isTop && GUILayout.Button("Close", GUILayout.Width(60)))
+                        {
+                            WindowManager.Instance.CloseWindow(popup.WindowId);
+                        }
+
+                        EditorGUILayout.EndHorizontal();
+                    }
+                }
+                EditorGUI.indentLevel--;
+            }
+            else
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.LabelField("(No popups)", EditorStyles.miniLabel);
+                EditorGUI.indentLevel--;
+            }
+
+            if (isTop)
+            {
+                if (GUILayout.Button("Close Screen", GUILayout.Height(20)))
+                {
+                    WindowManager.Instance.CloseWindow(screen.WindowId);
+                }
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
         private void DrawNonStackWindows()
         {
-            _showNonStackWindows = EditorGUILayout.BeginFoldoutHeaderGroup(_showNonStackWindows, "Non-Stack Windows (Overlay/Toast)");
+            _showNonStackWindows = EditorGUILayout.BeginFoldoutHeaderGroup(_showNonStackWindows, "Non-Stack Windows (Underlay/Toast/Overlay)");
 
             if (_showNonStackWindows)
             {
@@ -285,12 +346,12 @@ namespace NoisyBird.WindowSystem.Editor
                                 EditorGUILayout.BeginHorizontal(_windowItemStyle);
                                 EditorGUILayout.LabelField(window.WindowId, EditorStyles.boldLabel);
                                 EditorGUILayout.LabelField(window.WindowType.ToString(), GUILayout.Width(80));
-                                
+
                                 if (GUILayout.Button("Close", GUILayout.Width(60)))
                                 {
                                     WindowManager.Instance.CloseWindow(window.WindowId, saveState: true);
                                 }
-                                
+
                                 EditorGUILayout.EndHorizontal();
                             }
                         }
@@ -348,11 +409,11 @@ namespace NoisyBird.WindowSystem.Editor
             if (state is AutoWindowState autoState)
             {
                 EditorGUILayout.LabelField($"Saved Properties: {autoState.StateData.Count}");
-                
+
                 EditorGUI.indentLevel++;
                 foreach (var data in autoState.StateData)
                 {
-                    EditorGUILayout.LabelField($"• {data.Key}", data.Value?.ToString() ?? "null", EditorStyles.miniLabel);
+                    EditorGUILayout.LabelField($"- {data.Key}", data.Value?.ToString() ?? "null", EditorStyles.miniLabel);
                 }
                 EditorGUI.indentLevel--;
             }
@@ -387,48 +448,60 @@ namespace NoisyBird.WindowSystem.Editor
         {
             if (WindowManager.Instance == null) return new Dictionary<string, WindowBase>();
 
-            var field = typeof(WindowManager).GetField("_registeredWindows", 
+            var field = typeof(WindowManager).GetField("_registeredWindows",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
+
             if (field != null)
             {
-                return field.GetValue(WindowManager.Instance) as Dictionary<string, WindowBase> 
+                return field.GetValue(WindowManager.Instance) as Dictionary<string, WindowBase>
                     ?? new Dictionary<string, WindowBase>();
             }
 
             return new Dictionary<string, WindowBase>();
         }
 
-        private List<WindowBase> GetStackWindows()
+        private Stack<object> GetScreenGroups()
         {
-            if (WindowManager.Instance == null) return new List<WindowBase>();
+            if (WindowManager.Instance == null) return null;
 
-            var field = typeof(WindowManager).GetField("_windowStack", 
+            var field = typeof(WindowManager).GetField("_screenGroups",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            if (field != null)
+
+            if (field == null) return null;
+
+            // Stack<ScreenGroup>을 Stack<object>로 변환
+            var rawStack = field.GetValue(WindowManager.Instance);
+            if (rawStack == null) return null;
+
+            var result = new Stack<object>();
+            var enumerator = rawStack as System.Collections.IEnumerable;
+            if (enumerator != null)
             {
-                var stack = field.GetValue(WindowManager.Instance) as Stack<WindowBase>;
-                if (stack != null)
+                var tempList = new List<object>();
+                foreach (var item in enumerator)
                 {
-                    // Stack을 List로 변환 (표시용)
-                    return new List<WindowBase>(stack);
+                    tempList.Add(item);
+                }
+                // Stack 순회는 Top→Bottom이므로 그대로 유지
+                foreach (var item in tempList)
+                {
+                    result.Push(item);
                 }
             }
 
-            return new List<WindowBase>();
+            return result;
         }
 
         private List<WindowBase> GetNonStackWindows()
         {
             if (WindowManager.Instance == null) return new List<WindowBase>();
 
-            var field = typeof(WindowManager).GetField("_nonStackWindows", 
+            var field = typeof(WindowManager).GetField("_nonStackWindows",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
+
             if (field != null)
             {
-                return field.GetValue(WindowManager.Instance) as List<WindowBase> 
+                return field.GetValue(WindowManager.Instance) as List<WindowBase>
                     ?? new List<WindowBase>();
             }
 
@@ -439,12 +512,12 @@ namespace NoisyBird.WindowSystem.Editor
         {
             if (WindowManager.Instance == null) return new Dictionary<string, WindowState>();
 
-            var field = typeof(WindowManager).GetField("_savedStates", 
+            var field = typeof(WindowManager).GetField("_savedStates",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
+
             if (field != null)
             {
-                return field.GetValue(WindowManager.Instance) as Dictionary<string, WindowState> 
+                return field.GetValue(WindowManager.Instance) as Dictionary<string, WindowState>
                     ?? new Dictionary<string, WindowState>();
             }
 

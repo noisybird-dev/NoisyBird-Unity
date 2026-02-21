@@ -111,11 +111,11 @@ namespace NoisyBird.WindowSystem.Examples
         /// <summary>
         /// Window 로더를 테스트합니다.
         /// </summary>
-        public void TestWindowLoader()
+        public async void TestWindowLoader()
         {
             // 등록되지 않은 Window를 열면 자동으로 로드됨
-            bool success = WindowManager.Instance.OpenWindow("TestWindow");
-            
+            bool success = await WindowManager.Instance.OpenWindow("TestWindow");
+
             if (success)
             {
                 Debug.Log("[WindowLoaderExample] Window loaded and opened successfully!");

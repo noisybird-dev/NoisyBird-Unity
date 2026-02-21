@@ -51,16 +51,16 @@ namespace NoisyBird.WindowSystem.Examples
             _onCancel = null;
         }
 
-        private void OnConfirmClicked()
+        private async void OnConfirmClicked()
         {
             _onConfirm?.Invoke();
-            WindowManager.Instance.CloseWindow(WindowId);
+            await WindowManager.Instance.CloseWindow(WindowId);
         }
 
-        private void OnCancelClicked()
+        private async void OnCancelClicked()
         {
             _onCancel?.Invoke();
-            WindowManager.Instance.CloseWindow(WindowId);
+            await WindowManager.Instance.CloseWindow(WindowId);
         }
 
         public override WindowState CaptureState()
