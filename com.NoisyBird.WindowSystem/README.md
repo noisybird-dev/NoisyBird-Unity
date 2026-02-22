@@ -240,7 +240,11 @@ await WindowManager.Instance.OpenWindow("NewWindow");
 
 ## 버전 히스토리
 
-### 1.1.0 (현재)
+### 1.1.1 (현재)
+- **버그 수정**
+  - WindowType에 따라 생성하는 Canvas들 Layer를 UI로 설정
+
+### 1.1.0
 - **전용 UI 카메라**
   - WindowSystemCamera 자동 생성 (depth-only, UI 레이어만 촬영, orthographic)
 - **WindowType별 독립 Canvas**

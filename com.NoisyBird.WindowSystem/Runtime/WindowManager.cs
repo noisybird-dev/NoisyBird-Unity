@@ -190,6 +190,7 @@ namespace NoisyBird.WindowSystem
 
                 // Container를 WindowManager의 자식으로 설정
                 container.transform.SetParent(transform, false);
+                container.layer = LayerMask.NameToLayer("UI");
 
                 // Canvas 추가 (ScreenSpace-Camera 모드)
                 Canvas canvas = container.AddComponent<Canvas>();
